@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="회계정보팀 좌석 순번 입력 — 내 차례에 자리를 고르세요.">
+<meta property="og:title" content="자리뽑기">
+<meta property="og:description" content="회계정보팀 좌석 순번 입력 — 내 차례에 자리를 고르세요.">
+<meta property="og:type" content="website">
+<title>자리뽑기 순번 입력</title>
+<style>
+/* 한 줄 세로 흐름 — 상태 띠 → 내 이름 → 진행자 메뉴 → 좌석도 → 순번표 → 기록 */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --sunk:#e9edf2; --ink:#18202b; --muted:#5f6b7a; --line:#d9dfe7;
+  --accent:#2453b8; --accent-ink:#ffffff; --accent-soft:#e4ecfa;
+  --p0:#2453b8; --p0-soft:#e4ecfa; --p1:#17804c; --p1-soft:#ddf2e6;
+  --fixed:#6b45b5; --fixed-soft:#efe8fa; --turn:#c98500; --turn-soft:#fff3d6;
+  --ok:#17804c; --ok-soft:#ddf2e6; --bad:#b83226; --bad-soft:#fbe5e2;
+  --block:#dde2e9; --block-ink:#56606d;
+  --f-body:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+  --f-mono:Consolas,"D2Coding",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#12161c; --surface:#1a2029; --sunk:#232a35; --ink:#e8ecf2; --muted:#9aa5b4; --line:#2f3845;
+  --accent:#7aa2f0; --accent-ink:#0f1520; --accent-soft:#1f2c44;
+  --p0:#7aa2f0; --p0-soft:#1f2c44; --p1:#5cc794; --p1-soft:#173326;
+  --fixed:#b597ef; --fixed-soft:#2a2240; --turn:#f0b43c; --turn-soft:#3a2f14;
+  --ok:#5cc794; --ok-soft:#173326; --bad:#f08a7e; --bad-soft:#3d1f1c;
+  --block:#29313d; --block-ink:#a3adba; color-scheme:dark } }
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:24px;margin:0;letter-spacing:-.5px}
+h2{font-size:17px;margin:0 0 8px}
+.top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:default}
+.mini{font-size:12px;padding:3px 8px}
+select,input{font:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field>span{font-size:12px;color:var(--muted)}
+.note{padding:10px 14px;border-radius:8px;background:var(--sunk);color:var(--muted);font-size:14px}
+.note.bad{background:var(--bad-soft);color:var(--bad)}
+.note.ok{background:var(--ok-soft);color:var(--ok)}
+.tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:700}
+
+.status{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+@media (max-width:640px){.status{grid-template-columns:1fr}}
+.turn{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.turn .who{color:var(--turn)}
+.facts{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.facts b{color:var(--ink);font-weight:700}
+.codebox{border:1.5px dashed var(--accent);border-radius:10px;padding:8px 14px;text-align:center;background:var(--accent-soft)}
+.codebox .v{font-family:var(--f-mono);font-size:22px;font-weight:700;color:var(--accent);letter-spacing:1px}
+.codebox small{display:block;font-size:11px;color:var(--muted)}
+ul.v{margin:8px 0 0;padding-left:20px}
+
+.mapwrap{overflow-x:auto;padding:4px 2px 8px}
+.grid{display:grid;gap:7px;width:max-content;margin:0 auto;--cw:96px;--ch:64px;--aw:34px}
+@media (max-width:640px){
+  .grid{--cw:40px;--ch:48px;--aw:16px;gap:3px}
+  .wrap>.card{padding:12px}
+  .cell .nm{font-size:11.5px;letter-spacing:-.8px;white-space:nowrap}
+  .cell .tt{display:none}
+  .cell .no{font-size:9px;top:1px;left:4px}
+  .cell.fixed .no{display:none}
+  .block{font-size:11px}
+  .block.aisle{letter-spacing:4px;font-size:10px}
+}
+.cell{width:var(--cw);height:var(--ch);border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;border:1.5px solid var(--line);background:var(--surface);font:inherit;color:var(--ink);padding:0}
+.cell .no{position:absolute;top:3px;left:6px;font-size:11px;color:var(--muted);font-family:var(--f-mono)}
+.cell .nm{font-weight:700;font-size:15px;line-height:1.2}
+.cell .tt{font-size:11px;color:var(--muted);line-height:1.2}
+.cell.fixed{background:var(--fixed-soft);border-color:var(--fixed)}
+.cell.spare{background:var(--sunk);border-style:dashed}
+.cell.p0{background:var(--p0-soft);border-color:var(--p0)}
+.cell.p1{background:var(--p1-soft);border-color:var(--p1)}
+.cell.open{border-color:var(--turn);background:var(--turn-soft)}
+button.cell{cursor:pointer}
+button.cell.open:hover,.cell.sel{box-shadow:0 0 0 3px var(--turn)}
+.cell.mine{box-shadow:0 0 0 3px var(--accent)}
+.block{background:var(--block);color:var(--block-ink);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.block.aisle{background:none;writing-mode:vertical-rl;letter-spacing:12px;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;border:1.5px solid;vertical-align:-1px;margin-right:4px}
+.action{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--turn-soft);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.action b{font-size:16px}
+
+.orders{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+ol.ord{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+ol.ord li{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-radius:7px;font-size:14px}
+ol.ord li .n{font-family:var(--f-mono);color:var(--muted);text-align:right}
+ol.ord li.now{background:var(--turn-soft);font-weight:700}
+ol.ord li.done{color:var(--muted)}
+ol.ord li .seat{font-size:13px;color:var(--ink);font-weight:700}
+ol.ord li .by{display:block;font-size:11px;color:var(--muted);font-weight:400}
+table.rec{width:100%;border-collapse:collapse;font-size:14px}
+table.rec th,table.rec td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+table.rec th{font-size:12px;color:var(--muted);font-weight:400}
+table.rec td{font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+details summary{cursor:pointer;color:var(--muted)}
+.adminbox{border-color:var(--accent)}
+.share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--accent-soft);border-radius:8px;margin-bottom:12px}
+.share .url{font-family:var(--f-mono);font-size:17px;font-weight:700;color:var(--accent);user-select:all}
+.offline{position:sticky;top:0;z-index:5}
+@media (prefers-reduced-motion:no-preference){ .cell{transition:background .2s, box-shadow .2s} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>자리뽑기</h1><span class="muted" id="subtitle">좌석 순번 입력</span></div>
+  <div id="offline" class="note bad offline" hidden>서버와 연결이 잠시 끊겼어요. 인터넷 연결을 확인해 주세요. 다시 연결되면 자동으로 이어져요.</div>
+  <div class="card status" id="status"><div><div class="turn">불러오는 중…</div></div></div>
+  <div class="card" id="mecard" hidden></div>
+  <div class="card adminbox" id="admin" hidden></div>
+  <div class="card">
+    <div class="row" style="margin-bottom:8px"><h2 style="margin:0">좌석 배치도</h2><span class="grow"></span><span class="muted" id="mapnote" style="font-size:13px"></span></div>
+    <div class="mapwrap"><div id="map"></div></div>
+    <div class="legend" id="legend"></div>
+    <div id="action"></div>
+  </div>
+  <div class="orders" id="orders"></div>
+  <div class="card" id="records" hidden></div>
+  <div id="login" class="row" style="justify-content:center"></div>
+</div>
+
+<script>
+'use strict';
+/* ---------- 공정성: 추첨 번호 기반 난수 (자리뽑기.html 과 같은 계산) ---------- */
+function hash128(str){
+  let h1=1779033703,h2=3144134277,h3=1013904242,h4=2773480762;
+  for (let i=0;i<str.length;i++){ const k=str.charCodeAt(i);
+    h1=h2^Math.imul(h1^k,597399067); h2=h3^Math.imul(h2^k,2869860233);
+    h3=h4^Math.imul(h3^k,951274213); h4=h1^Math.imul(h4^k,2716044179); }
+  h1=Math.imul(h3^(h1>>>18),597399067); h2=Math.imul(h4^(h2>>>22),2869860233);
+  h3=Math.imul(h1^(h3>>>17),951274213); h4=Math.imul(h2^(h4>>>19),2716044179);
+  return [(h1^h2^h3^h4)>>>0,(h2^h1)>>>0,(h3^h1)>>>0,(h4^h1)>>>0];
+}
+function sfc32(a,b,c,d){ return function(){ a>>>=0;b>>>=0;c>>>=0;d>>>=0; let t=(a+b)|0; a=b^b>>>9; b=c+(c<<3)|0; c=(c<<21|c>>>11); d=d+1|0; t=t+d|0; c=c+t|0; return (t>>>0)/4294967296; }; }
+const rngOf = (seed, tag) => { const h = hash128(seed+'|'+tag); return sfc32(h[0],h[1],h[2],h[3]); };
+const seedCode = seed => { const h = hash128('code|'+seed); return h[0].toString(16).padStart(8,'0').toUpperCase().replace(/(.{4})/,'$1-'); };
+function seededShuffle(arr, rng){ const a = arr.slice(); for (let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const seedNumbers = t => (String(t).match(/\d+/g) || []).map(n => String(+n));
+const makeSeed = (date, nums) => `${date}|${nums.join(',')}`;
+const zonePick = (seed, tag, options) => options[Math.floor(rngOf(seed, tag)() * options.length)];
+
+/* ---------- 도우미 ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const sortKo = a => a.slice().sort((x,y) => x.localeCompare(y,'ko'));
+const ymd = d => d ? d.replace(/-/g,'.') : '-';
+function today(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+const LS = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
+
+let CFG = null, FLOW = [], MEMBERS = [], SEATS = [], FREE = [], FIXED = new Set();
+const memberOf = n => MEMBERS.find(m => m.name === n);
+const disp = n => { const m = memberOf(n); return m && m.title ? `${n} ${m.title}` : n; };
+const seatById = id => SEATS.find(s => s.id === id);
+const seatAt = (r,c) => SEATS.find(s => s.r === r && s.c === c);
+const seatName = id => { const s = seatById(id); return s ? (/^\d+$/.test(s.label) ? s.label+'번' : s.label) : id; };
+function rangeIds(str){
+  const byLabel = {}; SEATS.forEach(s => { if (FREE.includes(s.id)) byLabel[s.label] = s.id; });
+  const out = [];
+  for (const tok of String(str).split(/[,\s]+/).filter(Boolean)){
+    const m = tok.match(/^(\d+)[-~](\d+)$/);
+    if (m){ for (let n=+m[1]; n<=+m[2]; n++) if (byLabel[n]) out.push(byLabel[n]); } else if (byLabel[tok]) out.push(byLabel[tok]);
+  }
+  return out;
+}
+function partMembers(fi){
+  const f = FLOW[fi], isLast = fi === FLOW.length-1, others = new Set(FLOW.filter((_,i) => i!==fi).map(x => x.part));
+  return sortKo(MEMBERS.filter(m => !m.exclude && !FIXED.has(m.name) && (m.part === f.part || (isLast && !others.has(m.part)))).map(m => m.name));
+}
+
+/* ---------- 상태 ---------- */
+let S = {round:null, picks:{}, records:[], version:-1, isAdmin:false, url:''};
+const DEVICE = LS.get('jari.device') || (() => { const d = 'd' + Math.random().toString(36).slice(2,10); LS.set('jari.device', d); return d; })();
+const auth = () => ({pin: LS.get('jari.pin') || '', device: DEVICE});
+let loginOpen = false;
+let loaded = false, offline = false;
+let myName = LS.get('jari.myName') || '';
+let ui = {sel:null, proxy:'', busy:false, msg:null, verify:null, viewRec:null, confirmNew:false, confirmSave:false,
+  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random'}};
+
+function phase(){
+  const r = S.round;
+  if (!r || r.status !== 'picking') return null;
+  for (let fi=0; fi<FLOW.length; fi++){
+    const part = FLOW[fi].part, order = r.orders[part] || [];
+    const placed = new Set(Object.values(S.picks).filter(p => p.part === part).map(p => p.name));
+    const turn = order.find(n => !placed.has(n));
+    if (turn) return {fi, part, order, turn, idx:order.indexOf(turn), placed};
+  }
+  return {complete:true};
+}
+function seatsFor(fi){
+  const f = FLOW[fi], base = f.zones.length ? rangeIds(f.zones[S.round.zone].seats) : FREE;
+  return base.filter(id => !S.picks[id]);
+}
+const seatOfName = n => Object.keys(S.picks).find(id => S.picks[id].name === n);
+const byText = p => !p ? '' : p.proxy ? '진행자가 입력' : (p.by === DEVICE ? '이 기기에서 입력' : `입력 기기 ${String(p.by).slice(-4)}`);
+
+/* ---------- 서버 (Apps Script) ---------- */
+/* ★ Apps Script [배포 관리]에서 복사한 웹 앱 URL을 아래 따옴표 안에 붙여 넣으세요 */
+const API_URL = 'https://script.google.com/macros/s/AKfycbxCJk1rGxg9rQK-ffwhVVE4q8vcC_DHMfy3Z4drCeU6zTCQhQf26vaTlJkmn4SiUs0n/exec';
+
+async function gs(fn, ...args){
+  if (/여기에_붙여넣기/.test(API_URL)) throw new Error('index.html 의 API_URL 에 Apps Script 웹 앱 주소를 넣어 주세요.');
+  const payload = fn === 'jariState' ? {fn:'state', auth:args[0], known:args[1]} : {fn:'api', action:args[0], body:args[1], auth:args[2]};
+  const res = await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload), redirect:'follow', credentials:'omit', cache:'no-store'});
+  if (!res.ok) throw new Error('서버 응답 오류 (' + res.status + ')');
+  const j = await res.json();
+  if (j && j.fatal) throw new Error(j.fatal);
+  return j;
+}
+function take(j){
+  if (!j || j.same) return false;
+  if (loaded && S.version >= 0 && typeof j.version === 'number' && j.version < S.version) return false;   // 늦게 도착한 옛날 응답은 무시
+  S = j; S.url = location.origin + location.pathname;
+  if (!CFG) initConfig(j.config);
+  return true;
+}
+async function api(action, body){
+  ui.busy = true; draw();
+  try{
+    const j = await gs('jariApi', action, body || {}, auth());
+    take(j);
+    if (j.error) throw new Error(j.error);
+    return true;
+  }catch(e){ ui.msg = {text:(e && e.message) || '처리하지 못했어요.', kind:'bad'}; return false; }
+  finally{ ui.busy = false; draw(); }
+}
+async function poll(){
+  try{
+    const j = await gs('jariState', auth(), loaded ? S.version : null);
+    const changed = take(j) || offline || !loaded;
+    loaded = true; offline = false;
+    if (changed){ if (ui.verify && S.round) ui.verify = verify(S.round); draw(); }
+  }catch(e){
+    if (!loaded){ $('#status').innerHTML = `<div><div class="turn">연결하지 못했어요</div><div class="muted">${esc(e.message || e)}</div></div>`; }
+    if (!offline){ offline = true; draw(); }
+  }
+  setTimeout(poll, document.hidden ? 15000 : 3000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && loaded) gs('jariState', auth(), S.version).then(j => { if (take(j)) draw(); }, () => {}); });
+async function login(pin){
+  LS.set('jari.pin', pin);
+  if (await api('login')){ loginOpen = false; ui.msg = {text:'진행자로 들어왔어요.', kind:'ok'}; draw(); }
+  else { LS.set('jari.pin', ''); }
+}
+
+/* ---------- 진행 ---------- */
+async function pickSeat(){
+  const ph = phase(), name = S.isAdmin ? (ui.proxy || ph.turn) : ph.turn, seat = ui.sel;
+  if (await api('pick', {seat, name})){ ui.sel = null; ui.proxy = ''; ui.msg = {text:`${disp(name)} → ${seatName(seat)} 입력했어요.`, kind:'ok'}; draw(); }
+}
+async function startRound(){
+  const f = ui.form, nums = seedNumbers(f.nums);
+  if (nums.length < 2){ ui.msg = {text:'참석자가 부른 숫자를 2개 이상 넣어 주세요.', kind:'bad'}; return draw(); }
+  if (!f.drawDate){ ui.msg = {text:'추첨일을 넣어 주세요.', kind:'bad'}; return draw(); }
+  const seed = makeSeed(f.drawDate, nums), code = seedCode(seed);
+  let zone, zoneHow;
+  if (f.zone === 'random'){ zone = zonePick(seed, `zone|${FLOW[0].part}|1`, FLOW[0].zones.map((_,i) => i)); zoneHow = 'random'; }
+  else { zone = +f.zone; zoneHow = 'manual'; }
+  const orders = {};
+  FLOW.forEach((fl,fi) => { orders[fl.part] = seededShuffle(partMembers(fi), rngOf(seed, `part|${fl.part}|choose|1`)); });
+  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, seed, code,
+    zone, zoneName:FLOW[0].zones[zone].name, zoneHow, orders};
+  if (await api('start', {round})){ ui.confirmNew = false; ui.verify = null; ui.msg = {text:`순번을 뽑았어요. 추첨 번호 ${code}`, kind:'ok'}; draw(); }
+}
+function verify(r){
+  const out = [];
+  const seedOk = r.seed === makeSeed(r.drawDate, r.nums) && seedCode(r.seed) === r.code;
+  out.push({ok:seedOk, t:`추첨 번호 ${r.code} = 추첨일 ${ymd(r.drawDate)} + 숫자 ${r.nums.join(' ')}`});
+  if (r.zoneHow === 'random') out.push({ok: zonePick(r.seed, `zone|${FLOW[0].part}|1`, FLOW[0].zones.map((_,i) => i)) === r.zone, t:`${FLOW[0].part} 구역 랜덤 → ${r.zoneName}`});
+  else out.push({ok:true, t:`${FLOW[0].part} 구역 ${r.zoneName} (진행자가 직접 선택)`});
+  FLOW.forEach((fl,fi) => {
+    const exp = seededShuffle(partMembers(fi), rngOf(r.seed, `part|${fl.part}|choose|1`)), got = r.orders[fl.part] || [];
+    const same = JSON.stringify(exp) === JSON.stringify(got);
+    const moved = !same && JSON.stringify(sortKo(exp)) === JSON.stringify(sortKo(got)) && (r.events||[]).some(e => /맨 뒤로/.test(e.t));
+    out.push({ok:same || moved, t:`${fl.part} 순번${moved ? ' — 결석자를 맨 뒤로 미룬 기록 있음 (진행 기록 참고)' : ''}`});
+  });
+  return out;
+}
+
+/* ---------- 화면 ---------- */
+function partClass(name){ const m = memberOf(name); const i = FLOW.findIndex(f => f.part === (m && m.part)); return ' p' + ((i < 0 ? FLOW.length-1 : i) % 2); }
+
+function draw(){
+  if (!CFG) return;
+  $('#offline').hidden = !offline;
+  const r = S.round, ph = phase();
+  const viewRec = ui.viewRec && S.records.find(x => x.id === ui.viewRec);
+
+  /* 상태 띠 */
+  let st;
+  if (!loaded) st = `<div><div class="turn">불러오는 중…</div></div>`;
+  else if (!r) st = `<div><div class="turn">아직 순번을 뽑기 전이에요</div><div class="muted">진행자가 순번을 뽑으면 여기에 차례가 표시돼요. 이 페이지를 열어 두면 자동으로 바뀌어요.</div></div>`;
+  else {
+    const facts = `<div class="facts"><span>추첨일 <b>${ymd(r.drawDate)}</b></span><span>자리 이동 <b>${ymd(r.moveDate)}</b></span>${r.untilDate ? `<span>사용 기간 <b>~${ymd(r.untilDate)}</b></span>` : ''}<span>${esc(FLOW[0].part)} 구역 <b>${esc(r.zoneName)}</b> (${r.zoneHow === 'random' ? '랜덤' : '직접 선택'})</span></div>`;
+    let head;
+    if (r.status === 'done') head = `<div class="turn">자리 확정 완료</div>`;
+    else if (ph.complete) head = `<div class="turn">모두 자리를 골랐어요</div><div class="muted">진행자가 확정하면 기록에 저장돼요.</div>`;
+    else head = `<div class="turn">지금 차례: <span class="who">${esc(disp(ph.turn))}</span></div><div class="muted">${esc(ph.part)} ${ph.idx+1}번째 / ${ph.order.length}명${myName === ph.turn ? ' · <b style="color:var(--turn)">내 차례예요! 아래 노란 자리 중 하나를 누르세요.</b>' : ''}</div>`;
+    st = `<div style="display:flex;flex-direction:column;gap:8px">${head}${facts}</div>
+      <div class="codebox"><small>추첨 번호</small><div class="v">${esc(r.code)}</div><small>참석자 숫자 ${esc(r.nums.join(' '))}</small>
+        <button class="btn mini" data-act="verify" style="margin-top:6px">${ui.verify ? '검증 닫기' : '검증'}</button></div>`;
+    if (ui.verify) st += `<div style="grid-column:1/-1"><ul class="v">${ui.verify.map(v => `<li>${v.ok?'✅':'❌'} ${esc(v.t)}</li>`).join('')}</ul>
+      <div class="muted" style="font-size:13px;margin-top:4px">${ui.verify.every(v=>v.ok) ? '추첨 번호로 다시 계산한 순번이 지금 순번과 같아요. 자리뽑기 앱에 같은 추첨일·숫자를 넣어도 같은 순번이 나와요.' : '다시 계산한 값과 다른 항목이 있어요!'}</div></div>`;
+  }
+  $('#status').innerHTML = st;
+
+  /* 내 이름 */
+  const mc = $('#mecard');
+  if (r && r.status === 'picking' && !S.isAdmin){
+    mc.hidden = false;
+    mc.innerHTML = `<div class="row"><label class="row" style="gap:8px"><span>나는</span>
+      <select id="myName"><option value="">이름을 고르세요</option>${MEMBERS.filter(m => !m.exclude && !FIXED.has(m.name)).map(m => `<option value="${esc(m.name)}" ${myName===m.name?'selected':''}>${esc(disp(m.name))}</option>`).join('')}</select></label>
+      <span class="muted" style="font-size:13px">내 차례가 되면 자리를 누를 수 있어요. 어느 기기에서 입력했는지 함께 기록돼요.</span></div>`;
+  } else mc.hidden = true;
+
+  drawAdmin(ph);
+
+  /* 좌석도 */
+  const canAct = r && r.status === 'picking' && ph && !ph.complete && !viewRec;
+  const open = canAct ? new Set(seatsFor(ph.fi)) : new Set();
+  const actor = canAct ? (S.isAdmin ? (ui.proxy || ph.turn) : (myName === ph.turn ? ph.turn : '')) : '';
+  const aisleCols = new Set(CFG.blocks.filter(b => b.aisle).map(b => b.c));
+  const colT = Array.from({length:CFG.cols}, (_,c) => aisleCols.has(c) && !SEATS.some(s => s.c === c) ? 'var(--aw)' : 'var(--cw)').join(' ');
+  let h = `<div class="grid" style="grid-template-columns:${colT};grid-template-rows:repeat(${CFG.rows},var(--ch))">`;
+  CFG.blocks.forEach(b => h += `<div class="block${b.aisle?' aisle':''}" style="grid-row:${b.r+1}/span ${b.h};grid-column:${b.c+1}/span ${b.w}">${esc(b.text)}</div>`);
+  SEATS.forEach(s => {
+    const pos = `style="grid-row:${s.r+1};grid-column:${s.c+1}"`;
+    let cls = 'cell', nm = '', tt = '', tag = 'div', attrs = '';
+    if (s.spare){ cls += ' spare'; tt = '비워 둠'; }
+    else if (s.fixed){ cls += ' fixed'; nm = s.fixed; tt = (memberOf(s.fixed)||{}).title || '고정'; }
+    else {
+      const who = viewRec ? viewRec.map[s.id] : (S.picks[s.id] && S.picks[s.id].name);
+      if (who){
+        nm = who; tt = (memberOf(who)||{}).title || ''; cls += partClass(who);
+        if (!viewRec && myName && who === myName) cls += ' mine';
+        if (!viewRec && S.isAdmin && r && r.status === 'picking'){ tag = 'button'; attrs = `data-seat="${s.id}"`; }
+      } else if (open.has(s.id)){ cls += ' open'; if (actor){ tag = 'button'; attrs = `data-seat="${s.id}" aria-label="${esc(seatName(s.id))} 고르기"`; } }
+      if (ui.sel === s.id) cls += ' sel';
+    }
+    h += `<${tag} class="${cls}" ${pos} ${attrs}><span class="no">${esc(s.label)}</span><span class="nm">${esc(nm)}</span><span class="tt">${esc(tt)}</span></${tag}>`;
+  });
+  $('#map').innerHTML = h + '</div>';
+  $('#mapnote').textContent = viewRec ? `${ymd(viewRec.drawDate)} 추첨 기록을 보는 중` : (canAct ? `노란 자리 = 지금 ${ph.part}가 고를 수 있는 자리` : '');
+  $('#legend').innerHTML = FLOW.map((f,i) => `<span><i style="background:var(--p${i%2}-soft);border-color:var(--p${i%2})"></i>${esc(f.part)}</span>`).join('') +
+    `<span><i style="background:var(--fixed-soft);border-color:var(--fixed)"></i>고정석</span><span><i style="background:var(--turn-soft);border-color:var(--turn)"></i>고를 수 있는 자리</span>` +
+    (viewRec ? ` <button class="btn mini" data-act="closerec">지금 회차로 돌아가기</button>` : '');
+
+  /* 확인 띠 */
+  let act = ui.msg ? `<div class="note ${ui.msg.kind||''}" style="margin-top:12px">${esc(ui.msg.text)}</div>` : '';
+  if (ui.sel && !viewRec){
+    const p = S.picks[ui.sel];
+    if (p && S.isAdmin) act += `<div class="action"><b>${esc(seatName(ui.sel))} · ${esc(disp(p.name))}</b><span class="muted">${esc(byText(p))}</span><span class="grow"></span>
+        <button class="btn" data-act="cancel">닫기</button><button class="btn danger" data-act="clear" ${ui.busy?'disabled':''}>이 자리 비우기</button></div>`;
+    else if (!p && actor) act += `<div class="action"><b>${esc(disp(actor))} → ${esc(seatName(ui.sel))}</b><span class="muted">맞으면 확정을 누르세요. 확정 후에는 진행자만 바꿀 수 있어요.</span><span class="grow"></span>
+        <button class="btn" data-act="cancel">취소</button><button class="btn primary" data-act="pick" ${ui.busy?'disabled':''}>확정</button></div>`;
+  }
+  $('#action').innerHTML = act;
+
+  /* 순번표 */
+  if (r && !viewRec){
+    $('#orders').innerHTML = FLOW.map((f,fi) => {
+      const order = r.orders[f.part] || [];
+      return `<div class="card"><h2>${esc(f.part)} 순번 <span class="muted" style="font-size:13px;font-weight:400">${fi === 0 ? esc(r.zoneName) + ' 안에서' : '남은 자리에서'}</span></h2><ol class="ord">${order.map((n,i) => {
+        const sid = seatOfName(n), p = sid && S.picks[sid], isNow = ph && !ph.complete && ph.part === f.part && ph.turn === n;
+        return `<li class="${isNow?'now':sid?'done':''}"><span class="n">${i+1}</span><span>${esc(disp(n))}${n===myName && !S.isAdmin?' <span class="tag">나</span>':''}${p ? `<span class="by">${esc(byText(p))}</span>` : ''}</span>
+          <span>${sid ? `<span class="seat">${esc(seatName(sid))}</span>` : isNow && S.isAdmin && i < order.length-1 ? `<button class="btn mini" data-act="toend" data-part="${esc(f.part)}" data-n="${esc(n)}">결석 · 맨 뒤로</button>` : ''}</span></li>`; }).join('')}</ol></div>`;
+    }).join('');
+  } else $('#orders').innerHTML = '';
+
+  /* 기록 */
+  const rc = $('#records');
+  if (S.records.length){
+    rc.hidden = false;
+    rc.innerHTML = `<h2>확정 기록</h2><div class="tablewrap"><table class="rec"><thead><tr><th>추첨일</th><th>자리 이동일</th><th>언제까지</th><th>추첨 번호</th><th>메모</th><th></th></tr></thead><tbody>
+      ${S.records.map(x => `<tr><td>${ymd(x.drawDate)}</td><td>${ymd(x.moveDate)}</td><td>${x.untilDate ? '~'+ymd(x.untilDate) : '-'}</td><td class="mono">${esc(x.code)}</td><td>${esc(x.memo||'')}</td>
+        <td><button class="btn mini" data-act="viewrec" data-id="${esc(x.id)}">배치 보기</button></td></tr>`).join('')}</tbody></table></div>`;
+  } else rc.hidden = true;
+
+  /* 진행자 로그인 */
+  const lg = $('#login');
+  if (S.isAdmin) lg.innerHTML = '';
+  else if (loginOpen) lg.innerHTML = `<input id="pin" type="password" inputmode="numeric" placeholder="진행자 PIN" style="width:140px" autocomplete="off"><button class="btn primary mini" data-act="login">들어가기</button><button class="btn mini" data-act="loginclose">닫기</button>`;
+  else lg.innerHTML = `<button class="btn mini" data-act="loginopen" style="opacity:.7">진행자</button>`;
+}
+
+function drawAdmin(ph){
+  const el = $('#admin');
+  if (!S.isAdmin){ el.hidden = true; return; }
+  el.hidden = false;
+  const r = S.round, f = ui.form, nums = seedNumbers(f.nums);
+  const preview = nums.length >= 2 && f.drawDate ? seedCode(makeSeed(f.drawDate, nums)) : '----–----';
+  let h = `<div class="row" style="margin-bottom:10px"><h2 style="margin:0">진행자 메뉴</h2><span class="tag">진행자 PIN으로 들어온 기기에서만 보여요</span><span class="grow"></span><button class="btn mini" data-act="logout">진행자 나가기</button></div>
+    <div class="share"><span>팀원에게 보낼 주소</span><span class="url" id="shareUrl">${esc(S.url)}</span><button class="btn mini" data-act="copy">복사</button></div>`;
+  if (!r || r.status === 'done' || ui.confirmNew){
+    h += `<div class="muted" style="font-size:14px;margin-bottom:10px">회의나 메신저에서 참석자 몇 명이 각자 숫자를 하나씩 부르게 하고, 그 숫자를 넣은 뒤 순번을 뽑아요. 순번과 구역은 이 숫자로만 정해지고 모두에게 공개돼요.</div>
+      <div class="row" style="align-items:flex-end">
+        <label class="field"><span>추첨일</span><input type="date" id="f_drawDate" value="${esc(f.drawDate)}"></label>
+        <label class="field"><span>자리 이동일</span><input type="date" id="f_moveDate" value="${esc(f.moveDate)}"></label>
+        <label class="field"><span>언제까지 앉나요</span><input type="date" id="f_untilDate" value="${esc(f.untilDate)}"></label>
+        <label class="field" style="flex:1;min-width:180px"><span>메모</span><input id="f_memo" value="${esc(f.memo)}" placeholder="예: 2026년 12월 자리 이동"></label>
+      </div>
+      <div class="row" style="align-items:flex-end;margin-top:10px">
+        <label class="field"><span>${esc(FLOW[0].part)} 구역</span><select id="f_zone">
+          <option value="random" ${f.zone==='random'?'selected':''}>추첨 번호로 랜덤</option>
+          ${FLOW[0].zones.map((z,i) => `<option value="${i}" ${f.zone===String(i)?'selected':''}>${esc(z.name)} (${esc(z.seats.replace('-','~'))}번) 직접 선택</option>`).join('')}</select></label>
+        <label class="field" style="flex:1;min-width:200px"><span>참석자가 부른 숫자 (2개 이상, 띄어쓰기로)</span><input id="f_nums" value="${esc(f.nums)}" placeholder="예: 7 1004 38 25"></label>
+        <div class="codebox"><small>추첨 번호 미리보기</small><div class="v" id="preview">${esc(preview)}</div></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" data-act="start" ${ui.busy?'disabled':''}>순번 뽑기</button>
+        ${ui.confirmNew ? `<span class="note bad" style="padding:6px 10px">지금 회차의 입력이 모두 지워지고, 새로 뽑았다는 기록이 남아요.</span><button class="btn" data-act="cancelnew">취소</button>` : ''}</div>`;
+  } else {
+    const complete = ph && ph.complete;
+    h += `<div class="row">
+      ${!complete ? `<label class="row" style="gap:8px"><span>대신 입력할 사람</span><select id="proxy"><option value="">지금 차례 (${esc(disp(ph.turn))})</option>
+        ${ph.order.filter(n => !ph.placed.has(n) && n !== ph.turn).map(n => `<option value="${esc(n)}" ${ui.proxy===n?'selected':''}>${esc(disp(n))}</option>`).join('')}</select></label>
+        <span class="muted" style="font-size:13px">자리를 누르면 이 사람으로 입력돼요. 입력된 자리를 누르면 비울 수 있어요.</span>` : ''}
+      <span class="grow"></span>
+      ${complete ? (ui.confirmSave ? `<span class="note">결과를 확정해 기록에 저장할까요?</span><button class="btn" data-act="cancelsave">취소</button><button class="btn primary" data-act="save" ${ui.busy?'disabled':''}>확정</button>`
+        : `<button class="btn primary" data-act="asksave">결과 확정 · 기록 저장</button>`) : ''}
+      <button class="btn danger" data-act="asknew">새로 뽑기</button>
+      ${ui.confirmReset ? `<span class="note bad" style="padding:6px 10px">연습한 순번·입력·버린 순번 기록을 모두 지우고 처음 상태로 돌려요. 확정 기록은 남아요.</span><button class="btn" data-act="cancelreset">취소</button><button class="btn danger" data-act="reset" ${ui.busy?'disabled':''}>지우기</button>`
+        : `<button class="btn mini" data-act="askreset">연습 지우기</button>`}</div>
+      <div class="row" style="margin-top:10px;align-items:flex-end">
+        <label class="field"><span>자리 이동일</span><input type="date" id="d_moveDate" value="${esc(r.moveDate||'')}"></label>
+        <label class="field"><span>언제까지</span><input type="date" id="d_untilDate" value="${esc(r.untilDate||'')}"></label>
+        <label class="field" style="flex:1;min-width:180px"><span>메모</span><input id="d_memo" value="${esc(r.memo||'')}"></label></div>
+      ${(r.history||[]).length ? `<div class="muted" style="font-size:13px;margin-top:8px">이번에 앞서 뽑고 버린 순번: ${r.history.map(x => esc(x.code)).join(', ')} (진행 기록에 남아요)</div>` : ''}`;
+  }
+  if (r && (r.events||[]).length) h += `<details style="margin-top:10px"><summary>진행 기록 ${r.events.length}건</summary><ul class="v">${r.events.map(e => `<li>${esc(e.at.replace('T',' '))} ${esc(e.t)} · ${esc(e.by)}</li>`).join('')}</ul></details>`;
+  el.innerHTML = h;
+}
+
+/* ---------- 이벤트 ---------- */
+document.addEventListener('click', e => {
+  const seatBtn = e.target.closest('[data-seat]');
+  if (seatBtn){ ui.sel = seatBtn.dataset.seat; ui.msg = null; draw(); return; }
+  const a = e.target.closest('[data-act]'); if (!a || a.disabled) return;
+  const k = a.dataset.act;
+  if (k === 'pick') pickSeat();
+  else if (k === 'cancel'){ ui.sel = null; draw(); }
+  else if (k === 'clear'){ const s = ui.sel; api('clear', {seat:s}).then(ok => { if (ok){ ui.sel = null; ui.msg = {text:`${seatName(s)}을 비웠어요.`, kind:'ok'}; draw(); } }); }
+  else if (k === 'start') startRound();
+  else if (k === 'asknew'){ ui.confirmNew = true; draw(); }
+  else if (k === 'cancelnew'){ ui.confirmNew = false; draw(); }
+  else if (k === 'askreset'){ ui.confirmReset = true; draw(); }
+  else if (k === 'cancelreset'){ ui.confirmReset = false; draw(); }
+  else if (k === 'reset') api('reset').then(ok => { ui.confirmReset = false; if (ok){ ui.sel = null; ui.verify = null; ui.msg = {text:'연습 기록을 지웠어요. 이제 실제로 순번을 뽑으면 돼요.', kind:'ok'}; } draw(); });
+  else if (k === 'asksave'){ ui.confirmSave = true; draw(); }
+  else if (k === 'cancelsave'){ ui.confirmSave = false; draw(); }
+  else if (k === 'save') api('save').then(ok => { if (ok){ ui.confirmSave = false; ui.msg = {text:'결과를 확정하고 기록에 저장했어요.', kind:'ok'}; draw(); } });
+  else if (k === 'toend') api('toend', {part:a.dataset.part, name:a.dataset.n});
+  else if (k === 'verify'){ ui.verify = ui.verify ? null : verify(S.round); draw(); }
+  else if (k === 'viewrec'){ ui.viewRec = a.dataset.id; ui.sel = null; draw(); window.scrollTo({top:0, behavior:'smooth'}); }
+  else if (k === 'closerec'){ ui.viewRec = null; draw(); }
+  else if (k === 'loginopen'){ loginOpen = true; draw(); const p = $('#pin'); if (p) p.focus(); }
+  else if (k === 'loginclose'){ loginOpen = false; draw(); }
+  else if (k === 'login'){ const p = $('#pin'); if (p && p.value) login(p.value.trim()); }
+  else if (k === 'logout'){ LS.set('jari.pin', ''); S.isAdmin = false; S.version = -1; ui.msg = null; draw(); }
+  else if (k === 'copy'){ const t = S.url; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { a.textContent = '복사됨'; }, () => { const r = document.createRange(); r.selectNodeContents($('#shareUrl')); getSelection().removeAllRanges(); getSelection().addRange(r); }); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'myName'){ myName = t.value; LS.set('jari.myName', myName); ui.sel = null; draw(); }
+  else if (t.id === 'proxy'){ ui.proxy = t.value; ui.sel = null; draw(); }
+  else if (t.id === 'f_zone') ui.form.zone = t.value;
+  else if (t.id && t.id.startsWith('d_')) api('dates', {[t.id.slice(2)]: t.value});
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pin' && e.target.value) login(e.target.value.trim()); });
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id && t.id.startsWith('f_') && t.id !== 'f_zone'){
+    ui.form[t.id.slice(2)] = t.value;
+    const nums = seedNumbers(ui.form.nums), p = $('#preview');
+    if (p) p.textContent = nums.length >= 2 && ui.form.drawDate ? seedCode(makeSeed(ui.form.drawDate, nums)) : '----–----';
+  }
+});
+
+/* ---------- 시작 ---------- */
+function initConfig(c){
+  CFG = c; FLOW = c.flow; MEMBERS = c.members; SEATS = c.seats;
+  FREE = SEATS.filter(s => !s.fixed && !s.spare).map(s => s.id);
+  FIXED = new Set(SEATS.filter(s => s.fixed).map(s => s.fixed));
+  $('#subtitle').textContent = `${c.team} 좌석 순번 입력`;
+}
+poll();
+</script>
+</body>
+</html>

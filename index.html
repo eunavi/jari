@@ -9,14 +9,14 @@
 <meta property="og:type" content="website">
 <title>자리뽑기 순번 입력</title>
 <style>
-/* 한 줄 세로 흐름 — 상태 띠 → 내 이름 → 진행자 메뉴 → 좌석도 → 순번표 → 기록 */
+/* 한 줄 세로 흐름 — 상태 띠 → 내 이름 → 게임 → 진행자 메뉴 → 좌석도 → 순번표 → 기록 */
 :root{
   --bg:#f3f5f8; --surface:#ffffff; --sunk:#e9edf2; --ink:#18202b; --muted:#5f6b7a; --line:#d9dfe7;
   --accent:#2453b8; --accent-ink:#ffffff; --accent-soft:#e4ecfa;
   --p0:#2453b8; --p0-soft:#e4ecfa; --p1:#17804c; --p1-soft:#ddf2e6;
   --fixed:#6b45b5; --fixed-soft:#efe8fa; --turn:#c98500; --turn-soft:#fff3d6;
   --ok:#17804c; --ok-soft:#ddf2e6; --bad:#b83226; --bad-soft:#fbe5e2;
-  --block:#dde2e9; --block-ink:#56606d;
+  --block:#dde2e9; --block-ink:#56606d; --rail:#c3cad4;
   --f-body:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
   --f-mono:Consolas,"D2Coding",monospace;
   color-scheme:light;
@@ -27,11 +27,11 @@
   --p0:#7aa2f0; --p0-soft:#1f2c44; --p1:#5cc794; --p1-soft:#173326;
   --fixed:#b597ef; --fixed-soft:#2a2240; --turn:#f0b43c; --turn-soft:#3a2f14;
   --ok:#5cc794; --ok-soft:#173326; --bad:#f08a7e; --bad-soft:#3d1f1c;
-  --block:#29313d; --block-ink:#a3adba; color-scheme:dark } }
+  --block:#29313d; --block-ink:#a3adba; --rail:#3c4655; color-scheme:dark } }
 
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
-.wrap{max-width:980px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:14px}
+.wrap{max-width:1000px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:14px}
 h1{font-size:24px;margin:0;letter-spacing:-.5px}
 h2{font-size:17px;margin:0 0 8px}
 .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
@@ -44,6 +44,7 @@ h2{font-size:17px;margin:0 0 8px}
 .btn:hover{border-color:var(--muted)}
 .btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.big{font-size:17px;padding:12px 22px}
 .btn.danger{color:var(--bad)}
 .btn:disabled{opacity:.45;cursor:default}
 .mini{font-size:12px;padding:3px 8px}
@@ -66,18 +67,30 @@ select,input{font:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--
 .codebox small{display:block;font-size:11px;color:var(--muted)}
 ul.v{margin:8px 0 0;padding-left:20px}
 
+/* 게임 */
+.gamehead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.gamebox{overflow-x:auto;display:flex;justify-content:center;padding:4px 0}
+.gamebox canvas{display:block;flex:none}
+.who-line{display:flex;align-items:center;justify-content:center;gap:14px;min-height:52px;text-align:center;flex-wrap:wrap}
+.who-line .seatno{font-size:17px;color:var(--muted)}
+.who-line .w{font-size:26px;font-weight:700;letter-spacing:-.5px}
+.who-line .w.rolling{color:var(--muted)}
+.who-line .w.landed{color:var(--accent);animation:pop .35s ease}
+@keyframes pop{0%{transform:scale(.7)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+.gameact{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:8px}
+.cards{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.cardf{width:64px;height:86px;border-radius:9px;border:0;font:inherit;color:#fff;font-size:22px;font-weight:700;
+  background:repeating-linear-gradient(45deg,#3d66c9 0 8px,#3560c2 8px 16px);box-shadow:0 2px 4px rgba(0,0,0,.15)}
+button.cardf{cursor:pointer}
+button.cardf:hover{transform:translateY(-3px)}
+.cardf.open{background:var(--surface);border:2px solid var(--accent);color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cardf.open small{font-size:12px;color:var(--ink);font-weight:400;margin-top:2px}
+.cardf.flip{animation:flip .5s ease}
+@keyframes flip{0%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+
+/* 좌석도 */
 .mapwrap{overflow-x:auto;padding:4px 2px 8px}
 .grid{display:grid;gap:7px;width:max-content;margin:0 auto;--cw:96px;--ch:64px;--aw:34px}
-@media (max-width:640px){
-  .grid{--cw:40px;--ch:48px;--aw:16px;gap:3px}
-  .wrap>.card{padding:12px}
-  .cell .nm{font-size:11.5px;letter-spacing:-.8px;white-space:nowrap}
-  .cell .tt{display:none}
-  .cell .no{font-size:9px;top:1px;left:4px}
-  .cell.fixed .no{display:none}
-  .block{font-size:11px}
-  .block.aisle{letter-spacing:4px;font-size:10px}
-}
 .cell{width:var(--cw);height:var(--ch);border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;border:1.5px solid var(--line);background:var(--surface);font:inherit;color:var(--ink);padding:0}
 .cell .no{position:absolute;top:3px;left:6px;font-size:11px;color:var(--muted);font-family:var(--f-mono)}
 .cell .nm{font-weight:700;font-size:15px;line-height:1.2}
@@ -96,6 +109,17 @@ button.cell.open:hover,.cell.sel{box-shadow:0 0 0 3px var(--turn)}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;border:1.5px solid;vertical-align:-1px;margin-right:4px}
 .action{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--turn-soft);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .action b{font-size:16px}
+@media (max-width:640px){
+  .grid{--cw:40px;--ch:48px;--aw:16px;gap:3px}
+  .wrap>.card{padding:12px}
+  .cell .nm{font-size:11.5px;letter-spacing:-.8px;white-space:nowrap}
+  .cell .tt{display:none}
+  .cell .no{font-size:9px;top:1px;left:4px}
+  .cell.fixed .no{display:none}
+  .block{font-size:11px}
+  .block.aisle{letter-spacing:4px;font-size:10px}
+  .who-line .w{font-size:21px}
+}
 
 .orders{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
 ol.ord{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
@@ -113,7 +137,7 @@ table.rec td{font-variant-numeric:tabular-nums}
 details summary{cursor:pointer;color:var(--muted)}
 .adminbox{border-color:var(--accent)}
 .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--accent-soft);border-radius:8px;margin-bottom:12px}
-.share .url{font-family:var(--f-mono);font-size:17px;font-weight:700;color:var(--accent);user-select:all}
+.share .url{font-family:var(--f-mono);font-size:16px;font-weight:700;color:var(--accent);user-select:all;word-break:break-all}
 .offline{position:sticky;top:0;z-index:5}
 @media (prefers-reduced-motion:no-preference){ .cell{transition:background .2s, box-shadow .2s} }
 </style>
@@ -124,6 +148,12 @@ details summary{cursor:pointer;color:var(--muted)}
   <div id="offline" class="note bad offline" hidden>서버와 연결이 잠시 끊겼어요. 인터넷 연결을 확인해 주세요. 다시 연결되면 자동으로 이어져요.</div>
   <div class="card status" id="status"><div><div class="turn">불러오는 중…</div></div></div>
   <div class="card" id="mecard" hidden></div>
+  <div class="card" id="game" hidden>
+    <div class="gamehead"><h2 style="margin:0" id="gtitle"></h2><span class="muted" id="gsub" style="font-size:13px"></span></div>
+    <div class="gamebox" id="gbox"></div>
+    <div class="who-line" id="who"></div>
+    <div class="gameact" id="gact"></div>
+  </div>
   <div class="card adminbox" id="admin" hidden></div>
   <div class="card">
     <div class="row" style="margin-bottom:8px"><h2 style="margin:0">좌석 배치도</h2><span class="grow"></span><span class="muted" id="mapnote" style="font-size:13px"></span></div>
@@ -138,7 +168,7 @@ details summary{cursor:pointer;color:var(--muted)}
 
 <script>
 'use strict';
-/* ---------- 공정성: 추첨 번호 기반 난수 (자리뽑기.html 과 같은 계산) ---------- */
+/* ---------- 공정성: 추첨 번호 기반 난수 (서버·자리뽑기.html 과 같은 계산 — 검증용) ---------- */
 function hash128(str){
   let h1=1779033703,h2=3144134277,h3=1013904242,h4=2773480762;
   for (let i=0;i<str.length;i++){ const k=str.charCodeAt(i);
@@ -154,21 +184,44 @@ const seedCode = seed => { const h = hash128('code|'+seed); return h[0].toString
 function seededShuffle(arr, rng){ const a = arr.slice(); for (let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 const seedNumbers = t => (String(t).match(/\d+/g) || []).map(n => String(+n));
 const makeSeed = (date, nums) => `${date}|${nums.join(',')}`;
-const zonePick = (seed, tag, options) => options[Math.floor(rngOf(seed, tag)() * options.length)];
+function ladderEnd(rungs, c){ for (const row of rungs){ if (row[c]) c++; else if (c>0 && row[c-1]) c--; } return c; }
+function computeStep(method, people, seats, rng){
+  if (method === 'ladder'){
+    const n = seats.length, L = Math.max(9, n+3), rungs = [];
+    for (let l=0;l<L;l++){ const row=[]; for (let i=0;i<n-1;i++) row.push(!row[i-1] && rng() < 0.5); rungs.push(row); }
+    const tops = people.concat(Array(n-people.length).fill(null)), map = {};
+    tops.forEach((p,c) => { if (p) map[seats[ladderEnd(rungs,c)]] = p; });
+    return {map, rungs, tops};
+  }
+  if (method === 'choose') return {order: seededShuffle(people, rng)};
+  if (method === 'cards') return {cards: seededShuffle(seats, rng)};
+  const sh = seededShuffle(seats, rng), map = {};
+  people.forEach((p,i) => map[sh[i]] = p);
+  return {map};
+}
+const METHODS = [
+  ['ladder','🪜 사다리타기'], ['pinball','⚪ 핀볼'], ['roulette','🎡 룰렛'], ['reveal','⚡ 이름 공개 (진행자가 한 명씩)'],
+  ['choose','🔢 순번 뽑고 직접 고르기'], ['cards','🃏 카드 뽑기']
+];
+const methodName = k => ((METHODS.find(m => m[0] === k) || [k,k])[1]).replace(/^\S+\s/, '');
+const GAMES = ['ladder','pinball','roulette'];
 
 /* ---------- 도우미 ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const sortKo = a => a.slice().sort((x,y) => x.localeCompare(y,'ko'));
+const byCode = (a,b) => a < b ? -1 : a > b ? 1 : 0;
+const sortCode = a => a.slice().sort(byCode);
 const ymd = d => d ? d.replace(/-/g,'.') : '-';
 function today(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 const LS = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
+const PCOL = ['#e4572e','#2b59c3','#1f8a54','#b4621a','#8e44ad','#c2185b','#00838f','#6d4c41','#5c6bc0','#7cb342','#f39c12','#455a64','#d81b60','#3949ab'];
+const FONT = '"Malgun Gothic","맑은 고딕",sans-serif';
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 let CFG = null, FLOW = [], MEMBERS = [], SEATS = [], FREE = [], FIXED = new Set();
 const memberOf = n => MEMBERS.find(m => m.name === n);
 const disp = n => { const m = memberOf(n); return m && m.title ? `${n} ${m.title}` : n; };
 const seatById = id => SEATS.find(s => s.id === id);
-const seatAt = (r,c) => SEATS.find(s => s.r === r && s.c === c);
 const seatName = id => { const s = seatById(id); return s ? (/^\d+$/.test(s.label) ? s.label+'번' : s.label) : id; };
 function rangeIds(str){
   const byLabel = {}; SEATS.forEach(s => { if (FREE.includes(s.id)) byLabel[s.label] = s.id; });
@@ -181,39 +234,48 @@ function rangeIds(str){
 }
 function partMembers(fi){
   const f = FLOW[fi], isLast = fi === FLOW.length-1, others = new Set(FLOW.filter((_,i) => i!==fi).map(x => x.part));
-  return sortKo(MEMBERS.filter(m => !m.exclude && !FIXED.has(m.name) && (m.part === f.part || (isLast && !others.has(m.part)))).map(m => m.name));
+  return sortCode(MEMBERS.filter(m => !m.exclude && !FIXED.has(m.name) && (m.part === f.part || (isLast && !others.has(m.part)))).map(m => m.name));
 }
 
 /* ---------- 상태 ---------- */
-let S = {round:null, picks:{}, records:[], version:-1, isAdmin:false, url:''};
+let S = {round:null, picks:{}, parts:{}, records:[], version:-1, isAdmin:false, url:''};
+let loaded = false, offline = false;
+let myName = LS.get('jari.myName') || '';
 const DEVICE = LS.get('jari.device') || (() => { const d = 'd' + Math.random().toString(36).slice(2,10); LS.set('jari.device', d); return d; })();
 const auth = () => ({pin: LS.get('jari.pin') || '', device: DEVICE});
 let loginOpen = false;
-let loaded = false, offline = false;
-let myName = LS.get('jari.myName') || '';
-let ui = {sel:null, proxy:'', busy:false, msg:null, verify:null, viewRec:null, confirmNew:false, confirmSave:false,
-  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random'}};
+let ui = {sel:null, proxy:'', busy:false, msg:null, verify:null, viewRec:null, confirmNew:false, confirmSave:false, confirmReset:false,
+  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random', methods:{}, orderHow:'seed', manual:{}}};
+/* 추첨 번호(참석자 숫자)가 필요한 경우: 순번을 추첨하거나, 구역을 랜덤으로 하거나, 게임·카드 방식을 쓸 때 */
+const methodOf = (f, part) => f.methods[part] || 'choose';
+const needSeed = f => f.orderHow !== 'manual' || (FLOW[0].zones.length && f.zone === 'random') || FLOW.some(fl => methodOf(f, fl.part) !== 'choose');
 
-function phase(){
+/* 게임 장면: 새로 정해진 자리는 모든 화면에서 장면을 재생한 뒤 좌석도에 보인다 */
+const pending = new Set();          // 장면 재생을 기다리는 자리
+let animQ = [], animBusy = false, animTok = 0, flipSeat = null;
+const shownPicks = () => { const o = {}; for (const [k,v] of Object.entries(S.picks)) if (!pending.has(k)) o[k] = v; return o; };
+
+function phase(picks){
+  picks = picks || shownPicks();
   const r = S.round;
   if (!r || r.status !== 'picking') return null;
   for (let fi=0; fi<FLOW.length; fi++){
     const part = FLOW[fi].part, order = r.orders[part] || [];
-    const placed = new Set(Object.values(S.picks).filter(p => p.part === part).map(p => p.name));
+    const placed = new Set(Object.values(picks).filter(p => p.part === part).map(p => p.name));
     const turn = order.find(n => !placed.has(n));
-    if (turn) return {fi, part, order, turn, idx:order.indexOf(turn), placed};
+    if (turn) return {fi, part, order, turn, idx:order.indexOf(turn), placed, method:(r.methods||{})[part] || 'choose'};
   }
   return {complete:true};
 }
-function seatsFor(fi){
+function seatsFor(fi, picks){
   const f = FLOW[fi], base = f.zones.length ? rangeIds(f.zones[S.round.zone].seats) : FREE;
-  return base.filter(id => !S.picks[id]);
+  return base.filter(id => !picks[id]);
 }
-const seatOfName = n => Object.keys(S.picks).find(id => S.picks[id].name === n);
+const seatOfName = (n, picks) => Object.keys(picks).find(id => picks[id].name === n);
 const byText = p => !p ? '' : p.proxy ? '진행자가 입력' : (p.by === DEVICE ? '이 기기에서 입력' : `입력 기기 ${String(p.by).slice(-4)}`);
 
 /* ---------- 서버 (Apps Script) ---------- */
-/* ★ Apps Script [배포 관리]에서 복사한 웹 앱 URL을 아래 따옴표 안에 붙여 넣으세요 */
+/* ★ Apps Script [배포 관리]에서 복사한 웹 앱 URL을 아래 따옴표 안에 넣으세요 */
 const API_URL = 'https://script.google.com/macros/s/AKfycbxCJk1rGxg9rQK-ffwhVVE4q8vcC_DHMfy3Z4drCeU6zTCQhQf26vaTlJkmn4SiUs0n/exec';
 
 async function gs(fn, ...args){
@@ -228,8 +290,17 @@ async function gs(fn, ...args){
 }
 function take(j){
   if (!j || j.same) return false;
-  S = j; S.url = location.origin + location.pathname;
+  if (loaded && S.version >= 0 && typeof j.version === 'number' && j.version < S.version) return false;   // 늦게 도착한 옛날 응답은 무시
+  const prev = S.picks || {}, firstLoad = !loaded || S.version < 0;
+  S = j; S.parts = S.parts || {}; S.url = location.origin + location.pathname.replace(/index\.html$/, '');
   if (!CFG) initConfig(j.config);
+  // 새로 정해진 자리 → 장면 대기열 / 사라진 자리 → 대기 해제
+  for (const k of [...pending]) if (!S.picks[k]) pending.delete(k);
+  animQ = animQ.filter(p => S.picks[p.seat]);
+  if (!firstLoad){
+    const fresh = Object.values(S.picks).filter(p => !prev[p.seat] && p.via && p.via !== 'choose').sort((a,b) => byCode(a.at||'', b.at||''));
+    fresh.forEach(p => { pending.add(p.seat); animQ.push(p); });
+  }
   return true;
 }
 async function api(action, body){
@@ -240,21 +311,24 @@ async function api(action, body){
     if (j.error) throw new Error(j.error);
     return true;
   }catch(e){ ui.msg = {text:(e && e.message) || '처리하지 못했어요.', kind:'bad'}; return false; }
-  finally{ ui.busy = false; draw(); }
+  finally{ ui.busy = false; draw(); runQueue(); }
 }
 async function poll(){
   try{
     const j = await gs('jariState', auth(), loaded ? S.version : null);
     const changed = take(j) || offline || !loaded;
     loaded = true; offline = false;
-    if (changed){ if (ui.verify && S.round) ui.verify = verify(S.round); draw(); }
+    if (changed){ if (ui.verify && S.round) ui.verify = verify(S.round, S.parts, S.picks); draw(); runQueue(); }
   }catch(e){
     if (!loaded){ $('#status').innerHTML = `<div><div class="turn">연결하지 못했어요</div><div class="muted">${esc(e.message || e)}</div></div>`; }
     if (!offline){ offline = true; draw(); }
   }
-  setTimeout(poll, document.hidden ? 15000 : 3000);
+  setTimeout(poll, document.hidden ? 15000 : (animBusy || animQ.length ? 2000 : 3000));
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && loaded) gs('jariState', auth(), S.version).then(j => { if (take(j)) draw(); }, () => {}); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){ animTok++; if (G){ G.anim = null; G.ball = null; G.spin = null; G.angle = 0; } animQ.forEach(p => pending.delete(p.seat)); animQ = []; pending.clear(); animBusy = false; draw(); return; }
+  if (loaded) gs('jariState', auth(), S.version).then(j => { if (take(j)){ draw(); runQueue(); } }, () => {});
+});
 async function login(pin){
   LS.set('jari.pin', pin);
   if (await api('login')){ loginOpen = false; ui.msg = {text:'진행자로 들어왔어요.', kind:'ok'}; draw(); }
@@ -262,46 +336,269 @@ async function login(pin){
 }
 
 /* ---------- 진행 ---------- */
+function actorFor(ph){ return S.isAdmin ? (ui.proxy || ph.turn) : (myName === ph.turn ? ph.turn : ''); }
 async function pickSeat(){
-  const ph = phase(), name = S.isAdmin ? (ui.proxy || ph.turn) : ph.turn, seat = ui.sel;
+  const ph = phase(), name = actorFor(ph), seat = ui.sel;
   if (await api('pick', {seat, name})){ ui.sel = null; ui.proxy = ''; ui.msg = {text:`${disp(name)} → ${seatName(seat)} 입력했어요.`, kind:'ok'}; draw(); }
 }
 async function startRound(){
   const f = ui.form, nums = seedNumbers(f.nums);
-  if (nums.length < 2){ ui.msg = {text:'참석자가 부른 숫자를 2개 이상 넣어 주세요.', kind:'bad'}; return draw(); }
+  if (needSeed(f) && nums.length < 2){ ui.msg = {text:'참석자가 부른 숫자를 2개 이상 넣어 주세요.', kind:'bad'}; return draw(); }
   if (!f.drawDate){ ui.msg = {text:'추첨일을 넣어 주세요.', kind:'bad'}; return draw(); }
-  const seed = makeSeed(f.drawDate, nums), code = seedCode(seed);
-  let zone, zoneHow;
-  if (f.zone === 'random'){ zone = zonePick(seed, `zone|${FLOW[0].part}|1`, FLOW[0].zones.map((_,i) => i)); zoneHow = 'random'; }
-  else { zone = +f.zone; zoneHow = 'manual'; }
-  const orders = {};
-  FLOW.forEach((fl,fi) => { orders[fl.part] = seededShuffle(partMembers(fi), rngOf(seed, `part|${fl.part}|choose|1`)); });
-  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, seed, code,
-    zone, zoneName:FLOW[0].zones[zone].name, zoneHow, orders};
-  if (await api('start', {round})){ ui.confirmNew = false; ui.verify = null; ui.msg = {text:`순번을 뽑았어요. 추첨 번호 ${code}`, kind:'ok'}; draw(); }
+  const methods = {}; FLOW.forEach(fl => methods[fl.part] = methodOf(f, fl.part));
+  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, zone:f.zone, methods, orderHow:f.orderHow};
+  if (f.orderHow === 'manual'){
+    round.orders = {};
+    for (let fi=0; fi<FLOW.length; fi++){
+      const part = FLOW[fi].part, want = partMembers(fi), got = f.manual[part] || [];
+      if (got.length !== want.length){ ui.msg = {text:`${part} 순번을 ${want.length}명 모두 눌러 주세요. (지금 ${got.length}명)`, kind:'bad'}; return draw(); }
+      round.orders[part] = got.slice();
+    }
+  }
+  if (await api('start', {round})){
+    ui.confirmNew = false; ui.verify = null;
+    ui.msg = {text: S.round.code ? `순번을 정했어요. 추첨 번호 ${S.round.code}` : '입력한 순번으로 시작했어요.', kind:'ok'}; draw();
+  }
 }
-function verify(r){
+/** 검증: 추첨 번호·구역·순번·게임 결과를 이 화면에서 다시 계산해 서버 값과 비교 */
+function verify(r, parts, picks){
   const out = [];
-  const seedOk = r.seed === makeSeed(r.drawDate, r.nums) && seedCode(r.seed) === r.code;
-  out.push({ok:seedOk, t:`추첨 번호 ${r.code} = 추첨일 ${ymd(r.drawDate)} + 숫자 ${r.nums.join(' ')}`});
-  if (r.zoneHow === 'random') out.push({ok: zonePick(r.seed, `zone|${FLOW[0].part}|1`, FLOW[0].zones.map((_,i) => i)) === r.zone, t:`${FLOW[0].part} 구역 랜덤 → ${r.zoneName}`});
-  else out.push({ok:true, t:`${FLOW[0].part} 구역 ${r.zoneName} (진행자가 직접 선택)`});
+  if (r.seed) out.push({ok: r.seed === makeSeed(r.drawDate, r.nums) && seedCode(r.seed) === r.code, t:`추첨 번호 ${r.code} = 추첨일 ${ymd(r.drawDate)} + 숫자 ${r.nums.join(' ')}`});
+  if (FLOW[0].zones.length){
+    if (r.zoneHow === 'random') out.push({ok: Math.floor(rngOf(r.seed, `zone|${FLOW[0].part}|1`)() * FLOW[0].zones.length) === r.zone, t:`${FLOW[0].part} 구역 랜덤 → ${r.zoneName}`});
+    else out.push({ok:true, t:`${FLOW[0].part} 구역 ${r.zoneName} (진행자가 직접 선택)`});
+  }
   FLOW.forEach((fl,fi) => {
+    if (r.orderHow === 'manual'){ out.push({ok:true, t:`${fl.part} 순번 — 오프라인 제비뽑기 결과를 진행자가 입력`}); }
+    else {
     const exp = seededShuffle(partMembers(fi), rngOf(r.seed, `part|${fl.part}|choose|1`)), got = r.orders[fl.part] || [];
     const same = JSON.stringify(exp) === JSON.stringify(got);
-    const moved = !same && JSON.stringify(sortKo(exp)) === JSON.stringify(sortKo(got)) && (r.events||[]).some(e => /맨 뒤로/.test(e.t));
-    out.push({ok:same || moved, t:`${fl.part} 순번${moved ? ' — 결석자를 맨 뒤로 미룬 기록 있음 (진행 기록 참고)' : ''}`});
+    const moved = !same && JSON.stringify(sortCode(exp)) === JSON.stringify(sortCode(got)) && (r.events||[]).some(e => /맨 뒤로/.test(e.t));
+    out.push({ok:same || moved, t:`${fl.part} 순번${moved ? ' — 결석자를 맨 뒤로 미룬 기록 있음' : ''}`});
+    }
+    const info = parts && parts[fl.part];
+    if (info && info.method !== 'choose'){
+      const res = computeStep(info.method, info.people, info.seats, rngOf(r.seed, info.tag));
+      const mine = Object.values(picks).filter(p => p.part === fl.part || (info.people||[]).includes(p.name));
+      let ok = info.tag === `part|${fl.part}|${info.method}|1`;
+      if (info.map) ok = ok && JSON.stringify(res.map) === JSON.stringify(info.map);
+      if (info.cards) ok = ok && JSON.stringify(res.cards) === JSON.stringify(info.cards);
+      mine.forEach(p => {
+        if (res.map && res.map[p.seat] !== p.name) ok = false;
+        if (res.cards && p.card !== undefined && res.cards[p.card] !== p.seat) ok = false;
+      });
+      out.push({ok, t:`${fl.part} ${methodName(info.method)} 결과`});
+    }
   });
   return out;
 }
 
+/* ---------- 게임 장면 ---------- */
+let G = null;   // {part, method, key, c, g, ...}
+function curGamePart(){
+  if (animBusy && G) return G.part;
+  const p = animQ[0]; if (p) return p.part;
+  const ph = phase(); return ph && !ph.complete ? ph.part : null;
+}
+function makeCanvas(w,h){
+  const c = document.createElement('canvas'), r = window.devicePixelRatio || 1;
+  c.width = w*r; c.height = h*r; c.style.width = w+'px'; c.style.height = h+'px';
+  const g = c.getContext('2d'); g.scale(r,r); return [c,g];
+}
+function line(g,x1,y1,x2,y2){ g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+function rrect(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+function strokePath(g, pts, color, t){
+  let total = 0; const seg = [];
+  for (let i=1;i<pts.length;i++){ const d = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); seg.push(d); total += d; }
+  let left = total*t; g.strokeStyle = color; g.lineWidth = 5; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+  for (let i=1;i<pts.length && left>0;i++){ const d = seg[i-1], k = Math.min(1, left/d); g.lineTo(pts[i-1][0]+(pts[i][0]-pts[i-1][0])*k, pts[i-1][1]+(pts[i][1]-pts[i-1][1])*k); left -= d; }
+  g.stroke();
+}
+function animate(dur, frame, done){
+  const tok = ++animTok, t0 = performance.now();
+  const f = now => { if (tok !== animTok) return; const t = Math.min(1, (now-t0)/dur); frame(t); if (t < 1) requestAnimationFrame(f); else done(); };
+  requestAnimationFrame(f);
+}
+function buildGame(part){
+  const info = S.parts[part], box = $('#gbox');
+  if (!info || !GAMES.includes(info.method)){ G = {part, method: info && info.method, key:'none'}; box.innerHTML = ''; return; }
+  const W = Math.max(280, Math.min(960, ($('#game').clientWidth || 600) - 34));
+  const key = `${part}|${info.method}|${W}|${S.round && S.round.code}`;
+  if (G && G.key === key && box.firstChild) return;
+  box.innerHTML = '';
+  const n = info.seats.length;
+  if (info.method === 'ladder'){
+    const colW = Math.max(46, Math.min(96, Math.floor(W/n))), w = colW*n, L = info.rungs.length, top = 50, rowH = 24, yEnd = top+15+L*rowH+12, h = yEnd+60;
+    const [c,g] = makeCanvas(w,h); box.appendChild(c);
+    G = {key, part, method:'ladder', c, g, w, h, colW, top, rowH, yEnd, anim:null};
+    c.addEventListener('click', e => {
+      const ph = phase(); if (!ph || ph.complete || ph.part !== part || animBusy || ui.busy) return;
+      const p = info.tops[Math.floor(e.offsetX/colW)];
+      if (e.offsetY < top+8 && p && p === actorFor(ph)) play(p);
+    });
+  } else if (info.method === 'pinball'){
+    const binW = Math.max(40, Math.min(90, Math.floor(W/n))), w = binW*n, R = 9, top = 62, rowH = 28, binTop = top+R*rowH+4, h = binTop+72;
+    const [c,g] = makeCanvas(w,h); box.appendChild(c);
+    G = {key, part, method:'pinball', c, g, w, h, binW, R, top, rowH, binTop, ball:null};
+  } else {
+    const size = Math.min(380, W), h = size+18;
+    const [c,g] = makeCanvas(size,h); box.appendChild(c);
+    G = {key, part, method:'roulette', c, g, w:size, h, cx:size/2, cy:size/2+12, R:size/2-14, angle:0, spin:null};
+  }
+}
+function drawGame(){
+  if (!G || !G.c) return;
+  const info = S.parts[G.part]; if (!info) return;
+  const shown = shownPicks();
+  const placedSeat = {}; Object.values(shown).forEach(p => { if (p.part === G.part || info.people.includes(p.name)) placedSeat[p.seat] = p.name; });
+  const ink = css('--ink'), muted = css('--muted'), rail = css('--rail'), surf = css('--surface'), sunk = css('--sunk'), acc = css('--accent');
+  const g = G.g; g.clearRect(0,0,G.w,G.h); g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (G.method === 'ladder'){
+    const {colW, top, rowH, yEnd} = G, n = info.seats.length, xs = c => colW*c+colW/2;
+    const pts = col => { let c = col; const P = [[xs(c), top]]; info.rungs.forEach((row,l) => { const y = top+15+(l+.5)*rowH;
+      if (row[c]){ P.push([xs(c),y]); c++; P.push([xs(c),y]); } else if (c>0 && row[c-1]){ P.push([xs(c),y]); c--; P.push([xs(c),y]); } }); P.push([xs(c), yEnd]); return P; };
+    G.pts = pts;
+    g.lineWidth = 3; g.strokeStyle = rail; g.lineCap = 'round';
+    for (let c=0;c<n;c++) line(g, xs(c), top, xs(c), yEnd);
+    info.rungs.forEach((row,l) => row.forEach((on,i) => { if (on){ const y = top+15+(l+.5)*rowH; line(g, xs(i), y, xs(i+1), y); } }));
+    const done = new Set(Object.values(placedSeat));
+    info.tops.forEach((p,c) => { if (p && done.has(p)) strokePath(g, pts(c), PCOL[c%PCOL.length], 1); });
+    if (G.anim) strokePath(g, G.anim.pts, G.anim.color, G.anim.t);
+    const ph = phase(), me = ph && !ph.complete && ph.part === G.part ? actorFor(ph) : '';
+    info.tops.forEach((p,c) => {
+      const x = xs(c), bw = colW-8, on = p && (done.has(p) || (G.anim && G.anim.p === p)), mine = p && p === me && !done.has(p);
+      if (!p){ g.fillStyle = muted; g.font = `12px ${FONT}`; g.fillText('빈자리', x, 24); return; }
+      rrect(g, x-bw/2, 8, bw, 32, 8); g.fillStyle = on ? PCOL[c%PCOL.length] : mine ? css('--turn-soft') : surf; g.fill();
+      g.lineWidth = mine ? 3 : 1.5; g.strokeStyle = on ? PCOL[c%PCOL.length] : mine ? css('--turn') : muted; g.stroke();
+      g.fillStyle = on ? '#fff' : ink; g.font = `bold ${colW < 60 ? 12 : 14}px ${FONT}`; g.fillText(p, x, 24);
+    });
+    info.seats.forEach((id,c) => {
+      const x = xs(c), who = placedSeat[id], col = who ? PCOL[info.tops.indexOf(who) % PCOL.length] : null;
+      rrect(g, x-(colW-8)/2, yEnd+6, colW-8, 24, 6); g.fillStyle = who ? col : sunk; g.fill();
+      g.fillStyle = who ? '#fff' : ink; g.font = `bold 13px ${FONT}`; g.fillText(seatName(id), x, yEnd+18);
+      if (who){ g.fillStyle = col; g.font = `bold ${colW < 60 ? 12 : 13}px ${FONT}`; g.fillText(who, x, yEnd+44); }
+    });
+  } else if (G.method === 'pinball'){
+    const {w, binW, R, top, rowH, binTop} = G;
+    const ph = phase();
+    g.fillStyle = sunk; rrect(g, w/2-80, 6, 160, 34, 17); g.fill();
+    g.fillStyle = ink; g.font = `bold 14px ${FONT}`;
+    g.fillText(G.ball ? G.ball.p : (ph && !ph.complete && ph.part === G.part ? '▼ ' + ph.turn : '끝'), w/2, 23);
+    g.fillStyle = muted;
+    for (let r=0;r<R;r++){ const off = r%2 ? binW/2 : 0; for (let x = binW/2+off-binW; x < w; x += binW){ if (x < 6) continue; g.beginPath(); g.arc(x, top+r*rowH, 3.5, 0, Math.PI*2); g.fill(); } }
+    info.seats.forEach((id,i) => {
+      const x = i*binW, who = placedSeat[id];
+      g.fillStyle = who ? css('--accent-soft') : sunk; g.fillRect(x+2, binTop, binW-4, 64);
+      g.strokeStyle = muted; g.lineWidth = 2; line(g, x+1, binTop-8, x+1, binTop+64); line(g, x+binW-1, binTop-8, x+binW-1, binTop+64);
+      g.fillStyle = muted; g.font = `bold 12px ${FONT}`; g.fillText(seatName(id), x+binW/2, binTop+48);
+      if (who){ g.fillStyle = acc; g.font = `bold ${binW < 56 ? 11 : 13}px ${FONT}`; g.fillText(who, x+binW/2, binTop+22); }
+    });
+    if (G.ball){ g.fillStyle = '#e4572e'; g.beginPath(); g.arc(G.ball.x, G.ball.y, 9, 0, Math.PI*2); g.fill(); }
+  } else {
+    const {cx, cy, R} = G;
+    const rem = G.spin ? G.spin.rem : info.seats.filter(id => !placedSeat[id]);
+    const k = rem.length, ang = G.angle;
+    if (!k){ g.fillStyle = muted; g.font = `bold 18px ${FONT}`; g.fillText('모두 정해졌어요', cx, cy); return; }
+    const s = Math.PI*2/k;
+    rem.forEach((id,i) => {
+      g.beginPath(); g.moveTo(cx,cy); g.arc(cx,cy,R, ang+i*s, ang+(i+1)*s); g.closePath();
+      g.fillStyle = PCOL[i % PCOL.length]; g.globalAlpha = .9; g.fill(); g.globalAlpha = 1; g.strokeStyle = surf; g.lineWidth = 2; g.stroke();
+      g.save(); g.translate(cx,cy); g.rotate(ang+(i+.5)*s); g.fillStyle = '#fff'; g.font = `bold ${k > 10 ? 14 : 17}px ${FONT}`; g.textAlign = 'right'; g.fillText(seatName(id), R-12, 0); g.restore();
+    });
+    const ph = phase();
+    g.beginPath(); g.arc(cx,cy,46,0,Math.PI*2); g.fillStyle = surf; g.fill(); g.strokeStyle = css('--line'); g.lineWidth = 2; g.stroke();
+    g.fillStyle = ink; g.font = `bold 14px ${FONT}`; g.fillText(G.spin ? G.spin.p : (ph && !ph.complete && ph.part === G.part ? ph.turn : ''), cx, cy);
+    g.beginPath(); g.moveTo(cx-13, 2); g.lineTo(cx+13, 2); g.lineTo(cx, 30); g.closePath(); g.fillStyle = ink; g.fill();
+  }
+}
+function setWho(no, w, cls){ $('#who').innerHTML = (no ? `<span class="seatno">${esc(no)}</span>` : '') + (w ? `<span class="w ${cls||''}">${esc(w)}</span>` : ''); }
+/** 대기열의 장면을 하나씩 재생 (누가 눌렀든 모든 화면에서 같은 결과로) */
+function runQueue(){
+  if (animBusy || !animQ.length) return;
+  const p = animQ.shift(), info = S.parts[p.part];
+  if (!info || !S.picks[p.seat]){ pending.delete(p.seat); return runQueue(); }
+  if (document.hidden){ pending.delete(p.seat); draw(); return runQueue(); }   // 화면이 꺼져 있으면 장면 없이 바로 반영
+  animBusy = true;
+  const fast = animQ.length >= 3;
+  const finish = () => { pending.delete(p.seat); animBusy = false; setWho(seatName(p.seat), disp(p.name), 'landed'); draw(); runQueue(); };
+  $('#game').hidden = false; buildGame(p.part); drawGameCard();   // 장면이 도는 동안 버튼 숨김
+  if (p.via === 'ladder' && G.c){
+    drawGame(); const col = info.tops.indexOf(p.name);
+    G.anim = {p:p.name, pts:G.pts(col), color:PCOL[col%PCOL.length], t:0};
+    setWho('', `${disp(p.name)} 출발!`, 'rolling');
+    animate(fast ? 600 : 2000, t => { G.anim.t = t; drawGame(); }, () => { G.anim = null; finish(); });
+  } else if (p.via === 'pinball' && G.c){
+    const idx = info.seats.indexOf(p.seat), {w, binW, R, top, rowH, binTop} = G, xt = idx*binW+binW/2, P = [[w/2, 30]];
+    for (let r=0;r<R;r++){ const f = (r+1)/(R+1); let x = w/2 + (xt-w/2)*f + (Math.random()*2-1)*binW*1.8*(1-f); P.push([Math.max(10, Math.min(w-10, x)), top+r*rowH-11]); }
+    P.push([xt, binTop+30]);
+    G.ball = {p:p.name, x:P[0][0], y:P[0][1]}; setWho('', `${disp(p.name)} 구슬 떨어지는 중…`, 'rolling');
+    const segs = P.length-1;
+    animate(fast ? 500 : segs*160, t => { const u = t*segs, i = Math.min(segs-1, Math.floor(u)), k = u-i;
+      G.ball.x = P[i][0] + (P[i+1][0]-P[i][0])*k; G.ball.y = P[i][1] + (P[i+1][1]-P[i][1])*k - Math.sin(k*Math.PI)*9; drawGame(); },
+      () => { G.ball = null; finish(); });
+  } else if (p.via === 'roulette' && G.c){
+    const shown = shownPicks();
+    const rem = info.seats.filter(id => !Object.values(shown).some(x => x.seat === id));
+    const k = rem.length, s = Math.PI*2/k, ti = rem.indexOf(p.seat), a0 = G.angle;
+    let fin = -Math.PI/2 - (ti+.5)*s + (Math.random()-.5)*s*.6; while (fin < a0 + Math.PI*2*(fast ? 2 : 5)) fin += Math.PI*2;
+    G.spin = {p:p.name, rem}; setWho('', `${disp(p.name)} 룰렛 돌리는 중…`, 'rolling');
+    animate(fast ? 900 : 3800, t => { G.angle = a0 + (fin-a0)*(1-Math.pow(1-t,3)); drawGame(); },
+      () => { setWho(seatName(p.seat), disp(p.name), 'landed'); setTimeout(() => { G.spin = null; G.angle = 0; finish(); }, fast ? 200 : 1300); });
+  } else if (p.via === 'reveal'){
+    const names = info.people; let n = 0;
+    const iv = setInterval(() => setWho(seatName(p.seat), names[(n++ * 7) % names.length], 'rolling'), 70);
+    setTimeout(() => { clearInterval(iv); finish(); }, fast ? 250 : 900);
+  } else if (p.via === 'cards'){
+    flipSeat = p.seat; finish(); setTimeout(() => { flipSeat = null; }, 600);
+  } else finish();
+}
+async function play(name){
+  if (await api('play', {name})){ ui.proxy = ''; }
+}
+function drawGameCard(){
+  const el = $('#game'), r = S.round;
+  const part = r && r.status === 'picking' ? curGamePart() : (animBusy && G ? G.part : null);
+  const info = part && S.parts[part];
+  if (!info || info.method === 'choose'){ if (!animBusy){ el.hidden = true; G = null; } return; }
+  el.hidden = false;
+  const ph = phase(), live = ph && !ph.complete && ph.part === part;
+  $('#gtitle').textContent = `${part} · ${methodName(info.method)}`;
+  $('#gsub').textContent = live ? `${ph.idx+1}번째 / ${ph.order.length}명 — 결과는 추첨 번호로 이미 정해져 있고, 누르면 모두의 화면에서 같이 보여요` : '';
+  if (GAMES.includes(info.method)){ buildGame(part); drawGame(); }
+  else if (info.method === 'cards'){
+    G = {part, method:'cards', key:'cards'};
+    const shown = shownPicks(), opened = {}; Object.values(shown).forEach(p => { if (p.card !== undefined && info.cards[p.card] === p.seat) opened[p.card] = p; });
+    const can = live && !!actorFor(ph) && !animBusy;
+    $('#gbox').innerHTML = `<div class="cards">${info.cards.map((sid,i) => opened[i]
+      ? `<div class="cardf open ${flipSeat === sid ? 'flip' : ''}">${esc(seatById(sid).label)}<small>${esc(opened[i].name)}</small></div>`
+      : `<button class="cardf" data-card="${i}" ${can && !ui.busy ? '' : 'disabled'} aria-label="카드 ${i+1}">?</button>`).join('')}</div>`;
+  } else { G = {part, method:'reveal', key:'reveal'}; $('#gbox').innerHTML = ''; }
+  // 버튼
+  let a = '';
+  if (live && !animBusy){
+    const actor = actorFor(ph);
+    if (GAMES.includes(info.method)){
+      if (actor) a += `<button class="btn primary big" data-act="play" ${ui.busy?'disabled':''}>${info.method === 'ladder' ? '🪜' : info.method === 'pinball' ? '⚪' : '🎡'} ${esc(actor)} ${info.method === 'ladder' ? '사다리 출발' : info.method === 'pinball' ? '구슬 떨어뜨리기' : '룰렛 돌리기'}</button>`;
+      else a += `<span class="muted">${esc(disp(ph.turn))}님이 누르면 시작돼요${myName ? '' : ' · 위에서 내 이름을 고르세요'}</span>`;
+    } else if (info.method === 'cards'){
+      a += actor ? `<b>${esc(disp(actor))}</b><span class="muted">— 카드 한 장을 누르세요. 그 숫자가 자리예요.</span>` : `<span class="muted">${esc(disp(ph.turn))}님이 카드를 고를 차례예요</span>`;
+    } else if (info.method === 'reveal'){
+      a += S.isAdmin ? `<button class="btn primary big" data-act="revealone" ${ui.busy?'disabled':''}>⚡ 다음 사람 공개 (${esc(ph.turn)})</button>` : `<span class="muted">진행자가 한 명씩 공개해요</span>`;
+    }
+    if (S.isAdmin) a += `<button class="btn" data-act="revealall" ${ui.busy?'disabled':''}>남은 사람 모두 바로 결과</button>`;
+  }
+  $('#gact').innerHTML = a;
+  if (!animBusy && !live) setWho('', ph && ph.complete ? '모두 정해졌어요' : '', 'landed');
+  else if (!animBusy && live && !$('#who').textContent) setWho('', '', '');
+}
+
 /* ---------- 화면 ---------- */
 function partClass(name){ const m = memberOf(name); const i = FLOW.findIndex(f => f.part === (m && m.part)); return ' p' + ((i < 0 ? FLOW.length-1 : i) % 2); }
-
 function draw(){
   if (!CFG) return;
   $('#offline').hidden = !offline;
-  const r = S.round, ph = phase();
+  const r = S.round, shown = shownPicks(), ph = phase(shown);
   const viewRec = ui.viewRec && S.records.find(x => x.id === ui.viewRec);
 
   /* 상태 띠 */
@@ -309,16 +606,21 @@ function draw(){
   if (!loaded) st = `<div><div class="turn">불러오는 중…</div></div>`;
   else if (!r) st = `<div><div class="turn">아직 순번을 뽑기 전이에요</div><div class="muted">진행자가 순번을 뽑으면 여기에 차례가 표시돼요. 이 페이지를 열어 두면 자동으로 바뀌어요.</div></div>`;
   else {
-    const facts = `<div class="facts"><span>추첨일 <b>${ymd(r.drawDate)}</b></span><span>자리 이동 <b>${ymd(r.moveDate)}</b></span>${r.untilDate ? `<span>사용 기간 <b>~${ymd(r.untilDate)}</b></span>` : ''}<span>${esc(FLOW[0].part)} 구역 <b>${esc(r.zoneName)}</b> (${r.zoneHow === 'random' ? '랜덤' : '직접 선택'})</span></div>`;
+    const facts = `<div class="facts"><span>추첨일 <b>${ymd(r.drawDate)}</b></span><span>자리 이동 <b>${ymd(r.moveDate)}</b></span>${r.untilDate ? `<span>사용 기간 <b>~${ymd(r.untilDate)}</b></span>` : ''}${r.zoneName ? `<span>${esc(FLOW[0].part)} 구역 <b>${esc(r.zoneName)}</b> (${r.zoneHow === 'random' ? '랜덤' : '직접 선택'})</span>` : ''}</div>`;
     let head;
     if (r.status === 'done') head = `<div class="turn">자리 확정 완료</div>`;
-    else if (ph.complete) head = `<div class="turn">모두 자리를 골랐어요</div><div class="muted">진행자가 확정하면 기록에 저장돼요.</div>`;
-    else head = `<div class="turn">지금 차례: <span class="who">${esc(disp(ph.turn))}</span></div><div class="muted">${esc(ph.part)} ${ph.idx+1}번째 / ${ph.order.length}명${myName === ph.turn ? ' · <b style="color:var(--turn)">내 차례예요! 아래 노란 자리 중 하나를 누르세요.</b>' : ''}</div>`;
+    else if (ph.complete) head = `<div class="turn">모두 자리가 정해졌어요</div><div class="muted">진행자가 확정하면 기록에 저장돼요.</div>`;
+    else {
+      const mine = myName === ph.turn && !S.isAdmin;
+      const how = ph.method === 'choose' ? '아래 노란 자리 중 하나를 누르세요' : ph.method === 'cards' ? '위에서 카드 한 장을 누르세요' : ph.method === 'reveal' ? '진행자가 공개해요' : '위 버튼을 누르세요';
+      head = `<div class="turn">지금 차례: <span class="who">${esc(disp(ph.turn))}</span></div><div class="muted">${esc(ph.part)} ${ph.idx+1}번째 / ${ph.order.length}명 · ${esc(methodName(ph.method))}${mine ? ` · <b style="color:var(--turn)">내 차례예요! ${how}.</b>` : ''}</div>`;
+    }
     st = `<div style="display:flex;flex-direction:column;gap:8px">${head}${facts}</div>
-      <div class="codebox"><small>추첨 번호</small><div class="v">${esc(r.code)}</div><small>참석자 숫자 ${esc(r.nums.join(' '))}</small>
+      <div class="codebox">${r.code ? `<small>추첨 번호</small><div class="v">${esc(r.code)}</div><small>참석자 숫자 ${esc(r.nums.join(' '))}</small>` : `<small>순번</small><div style="font-weight:700;margin:4px 0">제비뽑기 결과 입력</div>`}
+        ${r.orderHow === 'manual' && r.code ? '<small>순번은 제비뽑기 결과 입력</small>' : ''}
         <button class="btn mini" data-act="verify" style="margin-top:6px">${ui.verify ? '검증 닫기' : '검증'}</button></div>`;
     if (ui.verify) st += `<div style="grid-column:1/-1"><ul class="v">${ui.verify.map(v => `<li>${v.ok?'✅':'❌'} ${esc(v.t)}</li>`).join('')}</ul>
-      <div class="muted" style="font-size:13px;margin-top:4px">${ui.verify.every(v=>v.ok) ? '추첨 번호로 다시 계산한 순번이 지금 순번과 같아요. 자리뽑기 앱에 같은 추첨일·숫자를 넣어도 같은 순번이 나와요.' : '다시 계산한 값과 다른 항목이 있어요!'}</div></div>`;
+      <div class="muted" style="font-size:13px;margin-top:4px">${ui.verify.every(v=>v.ok) ? '이 화면에서 추첨 번호로 다시 계산한 순번·게임 결과가 서버 결과와 같아요.' : '다시 계산한 값과 다른 항목이 있어요!'}</div></div>`;
   }
   $('#status').innerHTML = st;
 
@@ -328,15 +630,16 @@ function draw(){
     mc.hidden = false;
     mc.innerHTML = `<div class="row"><label class="row" style="gap:8px"><span>나는</span>
       <select id="myName"><option value="">이름을 고르세요</option>${MEMBERS.filter(m => !m.exclude && !FIXED.has(m.name)).map(m => `<option value="${esc(m.name)}" ${myName===m.name?'selected':''}>${esc(disp(m.name))}</option>`).join('')}</select></label>
-      <span class="muted" style="font-size:13px">내 차례가 되면 자리를 누를 수 있어요. 어느 기기에서 입력했는지 함께 기록돼요.</span></div>`;
+      <span class="muted" style="font-size:13px">내 차례가 되면 버튼이나 자리를 누를 수 있어요. 어느 기기에서 했는지 함께 기록돼요.</span></div>`;
   } else mc.hidden = true;
 
+  drawGameCard();
   drawAdmin(ph);
 
   /* 좌석도 */
-  const canAct = r && r.status === 'picking' && ph && !ph.complete && !viewRec;
-  const open = canAct ? new Set(seatsFor(ph.fi)) : new Set();
-  const actor = canAct ? (S.isAdmin ? (ui.proxy || ph.turn) : (myName === ph.turn ? ph.turn : '')) : '';
+  const canChoose = r && r.status === 'picking' && ph && !ph.complete && ph.method === 'choose' && !viewRec;
+  const open = canChoose ? new Set(seatsFor(ph.fi, S.picks)) : new Set();
+  const actor = canChoose ? actorFor(ph) : '';
   const aisleCols = new Set(CFG.blocks.filter(b => b.aisle).map(b => b.c));
   const colT = Array.from({length:CFG.cols}, (_,c) => aisleCols.has(c) && !SEATS.some(s => s.c === c) ? 'var(--aw)' : 'var(--cw)').join(' ');
   let h = `<div class="grid" style="grid-template-columns:${colT};grid-template-rows:repeat(${CFG.rows},var(--ch))">`;
@@ -347,18 +650,18 @@ function draw(){
     if (s.spare){ cls += ' spare'; tt = '비워 둠'; }
     else if (s.fixed){ cls += ' fixed'; nm = s.fixed; tt = (memberOf(s.fixed)||{}).title || '고정'; }
     else {
-      const who = viewRec ? viewRec.map[s.id] : (S.picks[s.id] && S.picks[s.id].name);
+      const who = viewRec ? viewRec.map[s.id] : (shown[s.id] && shown[s.id].name);
       if (who){
         nm = who; tt = (memberOf(who)||{}).title || ''; cls += partClass(who);
         if (!viewRec && myName && who === myName) cls += ' mine';
         if (!viewRec && S.isAdmin && r && r.status === 'picking'){ tag = 'button'; attrs = `data-seat="${s.id}"`; }
-      } else if (open.has(s.id)){ cls += ' open'; if (actor){ tag = 'button'; attrs = `data-seat="${s.id}" aria-label="${esc(seatName(s.id))} 고르기"`; } }
+      } else if (open.has(s.id) && !pending.has(s.id)){ cls += ' open'; if (actor){ tag = 'button'; attrs = `data-seat="${s.id}" aria-label="${esc(seatName(s.id))} 고르기"`; } }
       if (ui.sel === s.id) cls += ' sel';
     }
     h += `<${tag} class="${cls}" ${pos} ${attrs}><span class="no">${esc(s.label)}</span><span class="nm">${esc(nm)}</span><span class="tt">${esc(tt)}</span></${tag}>`;
   });
   $('#map').innerHTML = h + '</div>';
-  $('#mapnote').textContent = viewRec ? `${ymd(viewRec.drawDate)} 추첨 기록을 보는 중` : (canAct ? `노란 자리 = 지금 ${ph.part}가 고를 수 있는 자리` : '');
+  $('#mapnote').textContent = viewRec ? `${ymd(viewRec.drawDate)} 추첨 기록을 보는 중` : (canChoose ? `노란 자리 = 지금 ${ph.part}가 고를 수 있는 자리` : '');
   $('#legend').innerHTML = FLOW.map((f,i) => `<span><i style="background:var(--p${i%2}-soft);border-color:var(--p${i%2})"></i>${esc(f.part)}</span>`).join('') +
     `<span><i style="background:var(--fixed-soft);border-color:var(--fixed)"></i>고정석</span><span><i style="background:var(--turn-soft);border-color:var(--turn)"></i>고를 수 있는 자리</span>` +
     (viewRec ? ` <button class="btn mini" data-act="closerec">지금 회차로 돌아가기</button>` : '');
@@ -378,8 +681,8 @@ function draw(){
   if (r && !viewRec){
     $('#orders').innerHTML = FLOW.map((f,fi) => {
       const order = r.orders[f.part] || [];
-      return `<div class="card"><h2>${esc(f.part)} 순번 <span class="muted" style="font-size:13px;font-weight:400">${fi === 0 ? esc(r.zoneName) + ' 안에서' : '남은 자리에서'}</span></h2><ol class="ord">${order.map((n,i) => {
-        const sid = seatOfName(n), p = sid && S.picks[sid], isNow = ph && !ph.complete && ph.part === f.part && ph.turn === n;
+      return `<div class="card"><h2>${esc(f.part)} 순번 <span class="muted" style="font-size:13px;font-weight:400">${esc(methodName((r.methods||{})[f.part] || 'choose'))} · ${fi === 0 && r.zoneName ? esc(r.zoneName) + ' 안에서' : '남은 자리에서'}</span></h2><ol class="ord">${order.map((n,i) => {
+        const sid = seatOfName(n, shown), p = sid && shown[sid], isNow = ph && !ph.complete && ph.part === f.part && ph.turn === n;
         return `<li class="${isNow?'now':sid?'done':''}"><span class="n">${i+1}</span><span>${esc(disp(n))}${n===myName && !S.isAdmin?' <span class="tag">나</span>':''}${p ? `<span class="by">${esc(byText(p))}</span>` : ''}</span>
           <span>${sid ? `<span class="seat">${esc(seatName(sid))}</span>` : isNow && S.isAdmin && i < order.length-1 ? `<button class="btn mini" data-act="toend" data-part="${esc(f.part)}" data-n="${esc(n)}">결석 · 맨 뒤로</button>` : ''}</span></li>`; }).join('')}</ol></div>`;
     }).join('');
@@ -391,7 +694,10 @@ function draw(){
     rc.hidden = false;
     rc.innerHTML = `<h2>확정 기록</h2><div class="tablewrap"><table class="rec"><thead><tr><th>추첨일</th><th>자리 이동일</th><th>언제까지</th><th>추첨 번호</th><th>메모</th><th></th></tr></thead><tbody>
       ${S.records.map(x => `<tr><td>${ymd(x.drawDate)}</td><td>${ymd(x.moveDate)}</td><td>${x.untilDate ? '~'+ymd(x.untilDate) : '-'}</td><td class="mono">${esc(x.code)}</td><td>${esc(x.memo||'')}</td>
-        <td><button class="btn mini" data-act="viewrec" data-id="${esc(x.id)}">배치 보기</button></td></tr>`).join('')}</tbody></table></div>`;
+        <td><button class="btn mini" data-act="viewrec" data-id="${esc(x.id)}">배치 보기</button>
+        ${S.isAdmin ? (ui.confirmDel === x.id
+          ? ` <span class="note bad" style="padding:3px 8px;font-size:12px">이 기록을 지울까요? 되돌릴 수 없어요</span> <button class="btn mini danger" data-act="delrec" data-id="${esc(x.id)}" ${ui.busy?'disabled':''}>지우기</button> <button class="btn mini" data-act="canceldel">취소</button>`
+          : ` <button class="btn mini danger" data-act="askdel" data-id="${esc(x.id)}">삭제</button>`) : ''}</td></tr>`).join('')}</tbody></table></div>`;
   } else rc.hidden = true;
 
   /* 진행자 로그인 */
@@ -410,7 +716,7 @@ function drawAdmin(ph){
   let h = `<div class="row" style="margin-bottom:10px"><h2 style="margin:0">진행자 메뉴</h2><span class="tag">진행자 PIN으로 들어온 기기에서만 보여요</span><span class="grow"></span><button class="btn mini" data-act="logout">진행자 나가기</button></div>
     <div class="share"><span>팀원에게 보낼 주소</span><span class="url" id="shareUrl">${esc(S.url)}</span><button class="btn mini" data-act="copy">복사</button></div>`;
   if (!r || r.status === 'done' || ui.confirmNew){
-    h += `<div class="muted" style="font-size:14px;margin-bottom:10px">회의나 메신저에서 참석자 몇 명이 각자 숫자를 하나씩 부르게 하고, 그 숫자를 넣은 뒤 순번을 뽑아요. 순번과 구역은 이 숫자로만 정해지고 모두에게 공개돼요.</div>
+    h += `<div class="muted" style="font-size:14px;margin-bottom:10px">참석자 몇 명이 각자 숫자를 하나씩 부르게 하고, 그 숫자를 넣은 뒤 순번을 뽑아요. 구역·순번·게임 결과는 이 숫자로만 정해지고 모두에게 공개돼요.</div>
       <div class="row" style="align-items:flex-end">
         <label class="field"><span>추첨일</span><input type="date" id="f_drawDate" value="${esc(f.drawDate)}"></label>
         <label class="field"><span>자리 이동일</span><input type="date" id="f_moveDate" value="${esc(f.moveDate)}"></label>
@@ -418,10 +724,23 @@ function drawAdmin(ph){
         <label class="field" style="flex:1;min-width:180px"><span>메모</span><input id="f_memo" value="${esc(f.memo)}" placeholder="예: 2026년 12월 자리 이동"></label>
       </div>
       <div class="row" style="align-items:flex-end;margin-top:10px">
-        <label class="field"><span>${esc(FLOW[0].part)} 구역</span><select id="f_zone">
+        ${FLOW[0].zones.length ? `<label class="field"><span>${esc(FLOW[0].part)} 구역</span><select id="f_zone">
           <option value="random" ${f.zone==='random'?'selected':''}>추첨 번호로 랜덤</option>
-          ${FLOW[0].zones.map((z,i) => `<option value="${i}" ${f.zone===String(i)?'selected':''}>${esc(z.name)} (${esc(z.seats.replace('-','~'))}번) 직접 선택</option>`).join('')}</select></label>
-        <label class="field" style="flex:1;min-width:200px"><span>참석자가 부른 숫자 (2개 이상, 띄어쓰기로)</span><input id="f_nums" value="${esc(f.nums)}" placeholder="예: 7 1004 38 25"></label>
+          ${FLOW[0].zones.map((z,i) => `<option value="${i}" ${f.zone===String(i)?'selected':''}>${esc(z.name)} (${esc(z.seats.replace('-','~'))}번) 직접 선택</option>`).join('')}</select></label>` : ''}
+        ${FLOW.map((fl,i) => `<label class="field"><span>${esc(fl.part)} 뽑는 방법</span><select data-method="${esc(fl.part)}">
+          ${METHODS.map(([k,t]) => `<option value="${k}" ${(f.methods[fl.part] || 'choose') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}
+        <label class="field"><span>순번 정하기</span><select id="f_orderHow">
+          <option value="seed" ${f.orderHow !== 'manual' ? 'selected' : ''}>추첨 번호로 앱이 뽑기</option>
+          <option value="manual" ${f.orderHow === 'manual' ? 'selected' : ''}>직접 입력 (오프라인 제비뽑기 결과)</option></select></label>
+      </div>
+      ${f.orderHow === 'manual' ? `<div class="note" style="margin-top:10px;color:var(--ink)">제비뽑기에서 나온 <b>순서대로 이름을 누르세요.</b> 누른 순서가 1번, 2번… 순번이 돼요.
+        ${FLOW.map((fl,fi) => { const done = f.manual[fl.part] || [], left = partMembers(fi).filter(n => !done.includes(n));
+          return `<div style="margin-top:10px"><b>${esc(fl.part)}</b> <span class="muted">(${done.length}/${partMembers(fi).length})</span>
+            ${done.length ? `<button class="btn mini" data-act="mundo" data-part="${esc(fl.part)}">하나 되돌리기</button> <button class="btn mini" data-act="mclear" data-part="${esc(fl.part)}">다시</button>` : ''}
+            <div class="row" style="gap:6px;margin-top:6px">${done.map((n,i) => `<span class="tag" style="font-size:13px;padding:4px 10px">${i+1}. ${esc(n)}</span>`).join('')}</div>
+            <div class="row" style="gap:6px;margin-top:6px">${left.map(n => `<button class="btn mini" data-act="madd" data-part="${esc(fl.part)}" data-n="${esc(n)}">${esc(disp(n))}</button>`).join('')}</div></div>`; }).join('')}</div>` : ''}
+      <div class="row" style="align-items:flex-end;margin-top:10px">
+        <label class="field" style="flex:1;min-width:200px"><span>참석자가 부른 숫자 (2개 이상, 띄어쓰기로)${needSeed(f) ? '' : ' — 지금 설정에선 필요 없어요'}</span><input id="f_nums" value="${esc(f.nums)}" placeholder="${needSeed(f) ? '예: 7 1004 38 25' : '비워 둬도 돼요'}"></label>
         <div class="codebox"><small>추첨 번호 미리보기</small><div class="v" id="preview">${esc(preview)}</div></div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-act="start" ${ui.busy?'disabled':''}>순번 뽑기</button>
@@ -429,9 +748,9 @@ function drawAdmin(ph){
   } else {
     const complete = ph && ph.complete;
     h += `<div class="row">
-      ${!complete ? `<label class="row" style="gap:8px"><span>대신 입력할 사람</span><select id="proxy"><option value="">지금 차례 (${esc(disp(ph.turn))})</option>
+      ${!complete ? `<label class="row" style="gap:8px"><span>대신 할 사람</span><select id="proxy"><option value="">지금 차례 (${esc(disp(ph.turn))})</option>
         ${ph.order.filter(n => !ph.placed.has(n) && n !== ph.turn).map(n => `<option value="${esc(n)}" ${ui.proxy===n?'selected':''}>${esc(disp(n))}</option>`).join('')}</select></label>
-        <span class="muted" style="font-size:13px">자리를 누르면 이 사람으로 입력돼요. 입력된 자리를 누르면 비울 수 있어요.</span>` : ''}
+        <span class="muted" style="font-size:13px">결석자 대신 진행할 때 써요.</span>` : ''}
       <span class="grow"></span>
       ${complete ? (ui.confirmSave ? `<span class="note">결과를 확정해 기록에 저장할까요?</span><button class="btn" data-act="cancelsave">취소</button><button class="btn primary" data-act="save" ${ui.busy?'disabled':''}>확정</button>`
         : `<button class="btn primary" data-act="asksave">결과 확정 · 기록 저장</button>`) : ''}
@@ -450,14 +769,22 @@ function drawAdmin(ph){
 
 /* ---------- 이벤트 ---------- */
 document.addEventListener('click', e => {
+  const card = e.target.closest('[data-card]');
+  if (card && !card.disabled){ const ph = phase(); const name = actorFor(ph); if (name) api('card', {index:+card.dataset.card, name}).then(ok => { if (ok) ui.proxy = ''; }); return; }
   const seatBtn = e.target.closest('[data-seat]');
   if (seatBtn){ ui.sel = seatBtn.dataset.seat; ui.msg = null; draw(); return; }
   const a = e.target.closest('[data-act]'); if (!a || a.disabled) return;
   const k = a.dataset.act;
   if (k === 'pick') pickSeat();
+  else if (k === 'play'){ const ph = phase(); const n = actorFor(ph); if (n) play(n); }
+  else if (k === 'revealone') api('reveal', {});
+  else if (k === 'revealall') api('reveal', {all:true});
   else if (k === 'cancel'){ ui.sel = null; draw(); }
   else if (k === 'clear'){ const s = ui.sel; api('clear', {seat:s}).then(ok => { if (ok){ ui.sel = null; ui.msg = {text:`${seatName(s)}을 비웠어요.`, kind:'ok'}; draw(); } }); }
   else if (k === 'start') startRound();
+  else if (k === 'madd'){ const m = ui.form.manual; (m[a.dataset.part] = m[a.dataset.part] || []).push(a.dataset.n); draw(); }
+  else if (k === 'mundo'){ (ui.form.manual[a.dataset.part] || []).pop(); draw(); }
+  else if (k === 'mclear'){ ui.form.manual[a.dataset.part] = []; draw(); }
   else if (k === 'asknew'){ ui.confirmNew = true; draw(); }
   else if (k === 'cancelnew'){ ui.confirmNew = false; draw(); }
   else if (k === 'askreset'){ ui.confirmReset = true; draw(); }
@@ -467,20 +794,25 @@ document.addEventListener('click', e => {
   else if (k === 'cancelsave'){ ui.confirmSave = false; draw(); }
   else if (k === 'save') api('save').then(ok => { if (ok){ ui.confirmSave = false; ui.msg = {text:'결과를 확정하고 기록에 저장했어요.', kind:'ok'}; draw(); } });
   else if (k === 'toend') api('toend', {part:a.dataset.part, name:a.dataset.n});
-  else if (k === 'verify'){ ui.verify = ui.verify ? null : verify(S.round); draw(); }
+  else if (k === 'verify'){ ui.verify = ui.verify ? null : verify(S.round, S.parts, S.picks); draw(); }
   else if (k === 'viewrec'){ ui.viewRec = a.dataset.id; ui.sel = null; draw(); window.scrollTo({top:0, behavior:'smooth'}); }
   else if (k === 'closerec'){ ui.viewRec = null; draw(); }
+  else if (k === 'askdel'){ ui.confirmDel = a.dataset.id; draw(); }
+  else if (k === 'canceldel'){ ui.confirmDel = null; draw(); }
+  else if (k === 'delrec'){ const id = a.dataset.id; api('delrec', {id}).then(ok => { ui.confirmDel = null; if (ok){ if (ui.viewRec === id) ui.viewRec = null; ui.msg = {text:'확정 기록을 지웠어요. 구글 시트 \'기록\' 탭의 줄은 시트에서 직접 지워 주세요.', kind:'ok'}; } draw(); }); }
   else if (k === 'loginopen'){ loginOpen = true; draw(); const p = $('#pin'); if (p) p.focus(); }
   else if (k === 'loginclose'){ loginOpen = false; draw(); }
   else if (k === 'login'){ const p = $('#pin'); if (p && p.value) login(p.value.trim()); }
   else if (k === 'logout'){ LS.set('jari.pin', ''); S.isAdmin = false; S.version = -1; ui.msg = null; draw(); }
-  else if (k === 'copy'){ const t = S.url; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { a.textContent = '복사됨'; }, () => { const r = document.createRange(); r.selectNodeContents($('#shareUrl')); getSelection().removeAllRanges(); getSelection().addRange(r); }); }
+  else if (k === 'copy'){ const t = S.url; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { a.textContent = '복사됨'; }, () => { const rg = document.createRange(); rg.selectNodeContents($('#shareUrl')); getSelection().removeAllRanges(); getSelection().addRange(rg); }); }
 });
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'myName'){ myName = t.value; LS.set('jari.myName', myName); ui.sel = null; draw(); }
   else if (t.id === 'proxy'){ ui.proxy = t.value; ui.sel = null; draw(); }
-  else if (t.id === 'f_zone') ui.form.zone = t.value;
+  else if (t.id === 'f_zone'){ ui.form.zone = t.value; draw(); }
+  else if (t.id === 'f_orderHow'){ ui.form.orderHow = t.value; draw(); }
+  else if (t.dataset.method){ ui.form.methods[t.dataset.method] = t.value; draw(); }
   else if (t.id && t.id.startsWith('d_')) api('dates', {[t.id.slice(2)]: t.value});
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'pin' && e.target.value) login(e.target.value.trim()); });
@@ -492,6 +824,7 @@ document.addEventListener('input', e => {
     if (p) p.textContent = nums.length >= 2 && ui.form.drawDate ? seedCode(makeSeed(ui.form.drawDate, nums)) : '----–----';
   }
 });
+window.addEventListener('resize', () => { if (G && G.c && !animBusy){ G.key = ''; drawGameCard(); } });
 
 /* ---------- 시작 ---------- */
 function initConfig(c){
