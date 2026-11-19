@@ -744,7 +744,10 @@ function drawAdmin(ph){
         <div class="codebox"><small>추첨 번호 미리보기</small><div class="v" id="preview">${esc(preview)}</div></div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-act="start" ${ui.busy?'disabled':''}>순번 뽑기</button>
-        ${ui.confirmNew ? `<span class="note bad" style="padding:6px 10px">지금 회차의 입력이 모두 지워지고, 새로 뽑았다는 기록이 남아요.</span><button class="btn" data-act="cancelnew">취소</button>` : ''}</div>`;
+        ${ui.confirmNew ? `<span class="note bad" style="padding:6px 10px">지금 회차의 입력이 모두 지워지고, 새로 뽑았다는 기록이 남아요.</span><button class="btn" data-act="cancelnew">취소</button>` : ''}
+        ${r && !ui.confirmNew ? `<span class="grow"></span>${ui.confirmReset
+          ? `<span class="note bad" style="padding:6px 10px">지난 회차 화면과 진행 기록을 지워요. 확정 기록(아래 표)은 남아요.</span><button class="btn" data-act="cancelreset">취소</button><button class="btn danger" data-act="reset" ${ui.busy?'disabled':''}>지우기</button>`
+          : `<button class="btn mini" data-act="askreset">지난 회차 진행 기록 지우기</button>`}` : ''}</div>`;
   } else {
     const complete = ph && ph.complete;
     h += `<div class="row">
@@ -799,7 +802,8 @@ document.addEventListener('click', e => {
   else if (k === 'closerec'){ ui.viewRec = null; draw(); }
   else if (k === 'askdel'){ ui.confirmDel = a.dataset.id; draw(); }
   else if (k === 'canceldel'){ ui.confirmDel = null; draw(); }
-  else if (k === 'delrec'){ const id = a.dataset.id; api('delrec', {id}).then(ok => { ui.confirmDel = null; if (ok){ if (ui.viewRec === id) ui.viewRec = null; ui.msg = {text:'확정 기록을 지웠어요. 구글 시트 \'기록\' 탭의 줄은 시트에서 직접 지워 주세요.', kind:'ok'}; } draw(); }); }
+  else if (k === 'delrec'){ const id = a.dataset.id; api('delrec', {id}).then(ok => { ui.confirmDel = null; if (ok){ if (ui.viewRec === id) ui.viewRec = null; const n = S.sheetRows;
+    ui.msg = {text: n > 0 ? `확정 기록을 지웠어요. 구글 시트 '기록' 탭의 ${n}줄도 함께 지웠어요.` : n === 0 ? '확정 기록을 지웠어요. (시트 \'기록\' 탭에는 지울 줄이 없었어요)' : '확정 기록을 지웠어요. 시트 \'기록\' 탭 줄은 지우지 못했으니 시트에서 직접 지워 주세요.', kind:'ok'}; } draw(); }); }
   else if (k === 'loginopen'){ loginOpen = true; draw(); const p = $('#pin'); if (p) p.focus(); }
   else if (k === 'loginclose'){ loginOpen = false; draw(); }
   else if (k === 'login'){ const p = $('#pin'); if (p && p.value) login(p.value.trim()); }
