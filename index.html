@@ -201,8 +201,10 @@ function computeStep(method, people, seats, rng){
 }
 const METHODS = [
   ['ladder','🪜 사다리타기'], ['pinball','⚪ 핀볼'], ['roulette','🎡 룰렛'], ['reveal','⚡ 이름 공개 (진행자가 한 명씩)'],
-  ['choose','🔢 순번 뽑고 직접 고르기'], ['cards','🃏 카드 뽑기']
+  ['choose','🔢 순번 뽑고 직접 고르기'], ['cards','🃏 카드 뽑기'], ['assign','📌 PL 지정 (진행자가 입력)']
 ];
+const COMPUTED = ['ladder','pinball','roulette','reveal','cards'];
+const SEQS = [['mgmt','먼저'], ['fin','먼저'], ['together','다 같이 한 줄 순번']];
 const methodName = k => ((METHODS.find(m => m[0] === k) || [k,k])[1]).replace(/^\S+\s/, '');
 const GAMES = ['ladder','pinball','roulette'];
 
@@ -245,31 +247,53 @@ const DEVICE = LS.get('jari.device') || (() => { const d = 'd' + Math.random().t
 const auth = () => ({pin: LS.get('jari.pin') || '', device: DEVICE});
 let loginOpen = false;
 let ui = {sel:null, proxy:'', busy:false, msg:null, verify:null, viewRec:null, confirmNew:false, confirmSave:false, confirmReset:false,
-  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random', methods:{}, orderHow:'seed', manual:{}}};
+  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random', methods:{}, orderHow:'seed', manual:{}, sequence:'mgmt'}};
 /* 추첨 번호(참석자 숫자)가 필요한 경우: 순번을 추첨하거나, 구역을 랜덤으로 하거나, 게임·카드 방식을 쓸 때 */
-const methodOf = (f, part) => f.methods[part] || 'choose';
-const needSeed = f => f.orderHow !== 'manual' || (FLOW[0].zones.length && f.zone === 'random') || FLOW.some(fl => methodOf(f, fl.part) !== 'choose');
+const methodOf = (f, part) => f.sequence === 'together' ? 'choose' : (f.methods[part] || 'choose');
+const needSeed = f => { const sts = stages({sequence:f.sequence}); const m = st => stageMethod({methods:f.methods, sequence:f.sequence}, st);
+  return (f.orderHow !== 'manual' && sts.some(st => m(st) !== 'assign')) || (FLOW[0].zones.length && f.zone === 'random') || sts.some(st => COMPUTED.includes(m(st))); };
+const seqLabel = k => k === 'mgmt' ? `${FLOW[0].part} 먼저` : k === 'fin' ? `${FLOW[FLOW.length-1].part} 먼저` : '다 같이 한 줄 순번';
 
 /* 게임 장면: 새로 정해진 자리는 모든 화면에서 장면을 재생한 뒤 좌석도에 보인다 */
 const pending = new Set();          // 장면 재생을 기다리는 자리
 let animQ = [], animBusy = false, animTok = 0, flipSeat = null;
 const shownPicks = () => { const o = {}; for (const [k,v] of Object.entries(S.picks)) if (!pending.has(k)) o[k] = v; return o; };
 
+/* 뽑는 단계: 관리 먼저 / 재무 먼저 / 다 같이 (서버와 같은 규칙) */
+function stages(round){
+  const seq = (round && round.sequence) || 'mgmt';
+  if (seq === 'together') return [{key:'전체', parts:FLOW.map(f => f.part)}];
+  const st = FLOW.map(f => ({key:f.part, parts:[f.part]}));
+  return seq === 'fin' ? st.reverse() : st;
+}
+function stagePeople(st){ let out = []; FLOW.forEach((f,fi) => { if (st.parts.includes(f.part)) out = out.concat(partMembers(fi)); }); return sortCode(out); }
+function stageMethod(round, st){ return st.parts.length > 1 ? 'choose' : (((round && round.methods) || {})[st.key] || 'choose'); }
+const zonePart = () => FLOW[0].zones.length ? FLOW[0].part : null;
+function partOfName(n){ for (let fi=0; fi<FLOW.length; fi++) if (partMembers(fi).includes(n)) return FLOW[fi].part; return null; }
 function phase(picks){
   picks = picks || shownPicks();
   const r = S.round;
   if (!r || r.status !== 'picking') return null;
-  for (let fi=0; fi<FLOW.length; fi++){
-    const part = FLOW[fi].part, order = r.orders[part] || [];
-    const placed = new Set(Object.values(picks).filter(p => p.part === part).map(p => p.name));
-    const turn = order.find(n => !placed.has(n));
-    if (turn) return {fi, part, order, turn, idx:order.indexOf(turn), placed, method:(r.methods||{})[part] || 'choose'};
+  const placedAll = new Set(Object.values(picks).map(p => p.name)), sts = stages(r);
+  for (let si=0; si<sts.length; si++){
+    const st = sts[si], method = stageMethod(r, st), order = r.orders[st.key] || [];
+    const left = order.filter(n => !placedAll.has(n));
+    if (left.length){
+      const turn = method === 'assign' ? null : left[0];
+      return {si, key:st.key, part:st.key, parts:st.parts, order, left, turn, idx: turn ? order.indexOf(turn) : order.length - left.length, placed:placedAll, method};
+    }
   }
   return {complete:true};
 }
-function seatsFor(fi, picks){
-  const f = FLOW[fi], base = f.zones.length ? rangeIds(f.zones[S.round.zone].seats) : FREE;
-  return base.filter(id => !picks[id]);
+function zoneSeats(){ const r = S.round; return FLOW[0].zones.length && r && r.zone !== null && r.zone !== undefined ? rangeIds(FLOW[0].zones[r.zone].seats) : []; }
+/** 이 사람이 지금 앉을 수 있는 자리 — 관리는 구역 안, 다른 파트는 관리 몫 구역 자리를 남겨 둔 나머지 */
+function seatsForPerson(name, picks){
+  const zp = zonePart(), freeAll = FREE.filter(id => !picks[id]);
+  if (!zp) return freeAll;
+  const zs = zoneSeats(), zoneFree = zs.filter(id => !picks[id]);
+  if (partOfName(name) === zp) return zoneFree;
+  const placed = new Set(Object.values(picks).map(p => p.name)), need = partMembers(0).filter(n => !placed.has(n)).length;
+  return freeAll.filter(id => !zs.includes(id) || zoneFree.length - 1 >= need);
 }
 const seatOfName = (n, picks) => Object.keys(picks).find(id => picks[id].name === n);
 const byText = p => !p ? '' : p.proxy ? '진행자가 입력' : (p.by === DEVICE ? '이 기기에서 입력' : `입력 기기 ${String(p.by).slice(-4)}`);
@@ -298,7 +322,7 @@ function take(j){
   for (const k of [...pending]) if (!S.picks[k]) pending.delete(k);
   animQ = animQ.filter(p => S.picks[p.seat]);
   if (!firstLoad){
-    const fresh = Object.values(S.picks).filter(p => !prev[p.seat] && p.via && p.via !== 'choose').sort((a,b) => byCode(a.at||'', b.at||''));
+    const fresh = Object.values(S.picks).filter(p => !prev[p.seat] && p.via && p.via !== 'choose' && p.via !== 'assign').sort((a,b) => byCode(a.at||'', b.at||''));
     fresh.forEach(p => { pending.add(p.seat); animQ.push(p); });
   }
   return true;
@@ -336,9 +360,13 @@ async function login(pin){
 }
 
 /* ---------- 진행 ---------- */
-function actorFor(ph){ return S.isAdmin ? (ui.proxy || ph.turn) : (myName === ph.turn ? ph.turn : ''); }
+function actorFor(ph){
+  if (ph.method === 'assign') return S.isAdmin ? (ui.proxy && ph.left.includes(ui.proxy) ? ui.proxy : ph.left[0]) : '';
+  return S.isAdmin ? (ui.proxy || ph.turn) : (myName === ph.turn ? ph.turn : '');
+}
 async function pickSeat(){
-  const ph = phase(), name = actorFor(ph), seat = ui.sel;
+  const ph = phase(), seat = ui.sel;
+  const sel = $('#assignName'), name = ph.method === 'assign' && sel ? sel.value : actorFor(ph);
   if (await api('pick', {seat, name})){ ui.sel = null; ui.proxy = ''; ui.msg = {text:`${disp(name)} → ${seatName(seat)} 입력했어요.`, kind:'ok'}; draw(); }
 }
 async function startRound(){
@@ -346,13 +374,14 @@ async function startRound(){
   if (needSeed(f) && nums.length < 2){ ui.msg = {text:'참석자가 부른 숫자를 2개 이상 넣어 주세요.', kind:'bad'}; return draw(); }
   if (!f.drawDate){ ui.msg = {text:'추첨일을 넣어 주세요.', kind:'bad'}; return draw(); }
   const methods = {}; FLOW.forEach(fl => methods[fl.part] = methodOf(f, fl.part));
-  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, zone:f.zone, methods, orderHow:f.orderHow};
+  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, zone:f.zone, methods, orderHow:f.orderHow, sequence:f.sequence};
   if (f.orderHow === 'manual'){
     round.orders = {};
-    for (let fi=0; fi<FLOW.length; fi++){
-      const part = FLOW[fi].part, want = partMembers(fi), got = f.manual[part] || [];
-      if (got.length !== want.length){ ui.msg = {text:`${part} 순번을 ${want.length}명 모두 눌러 주세요. (지금 ${got.length}명)`, kind:'bad'}; return draw(); }
-      round.orders[part] = got.slice();
+    for (const st of stages({sequence:f.sequence})){
+      if (stageMethod({methods, sequence:f.sequence}, st) === 'assign') continue;
+      const want = stagePeople(st), got = f.manual[st.key] || [];
+      if (got.length !== want.length){ ui.msg = {text:`${st.key} 순번을 ${want.length}명 모두 눌러 주세요. (지금 ${got.length}명)`, kind:'bad'}; return draw(); }
+      round.orders[st.key] = got.slice();
     }
   }
   if (await api('start', {round})){
@@ -368,28 +397,33 @@ function verify(r, parts, picks){
     if (r.zoneHow === 'random') out.push({ok: Math.floor(rngOf(r.seed, `zone|${FLOW[0].part}|1`)() * FLOW[0].zones.length) === r.zone, t:`${FLOW[0].part} 구역 랜덤 → ${r.zoneName}`});
     else out.push({ok:true, t:`${FLOW[0].part} 구역 ${r.zoneName} (진행자가 직접 선택)`});
   }
-  FLOW.forEach((fl,fi) => {
-    if (r.orderHow === 'manual'){ out.push({ok:true, t:`${fl.part} 순번 — 오프라인 제비뽑기 결과를 진행자가 입력`}); }
+  for (const st of stages(r)){
+    const method = stageMethod(r, st), got = r.orders[st.key] || [];
+    if (method === 'assign') out.push({ok:true, t:`${st.key} — PL 지정 (진행자가 입력)`});
+    else if (r.orderHow === 'manual') out.push({ok:true, t:`${st.key} 순번 — 오프라인 제비뽑기 결과를 진행자가 입력`});
     else {
-    const exp = seededShuffle(partMembers(fi), rngOf(r.seed, `part|${fl.part}|choose|1`)), got = r.orders[fl.part] || [];
-    const same = JSON.stringify(exp) === JSON.stringify(got);
-    const moved = !same && JSON.stringify(sortCode(exp)) === JSON.stringify(sortCode(got)) && (r.events||[]).some(e => /맨 뒤로/.test(e.t));
-    out.push({ok:same || moved, t:`${fl.part} 순번${moved ? ' — 결석자를 맨 뒤로 미룬 기록 있음' : ''}`});
+      const exp = seededShuffle(stagePeople(st), rngOf(r.seed, `part|${st.key}|choose|1`));
+      const same = JSON.stringify(exp) === JSON.stringify(got);
+      const moved = !same && JSON.stringify(sortCode(exp)) === JSON.stringify(sortCode(got)) && (r.events||[]).some(e => /맨 뒤로/.test(e.t));
+      out.push({ok:same || moved, t:`${st.key} 순번${moved ? ' — 결석자를 맨 뒤로 미룬 기록 있음' : ''}`});
     }
-    const info = parts && parts[fl.part];
-    if (info && info.method !== 'choose'){
+    const info = parts && parts[st.key];
+    if (info && COMPUTED.includes(info.method)){
+      let ok = info.tag === `part|${st.key}|${info.method}|1`;
+      if (info.reserve){   // 관리 몫을 남기고 쓸 구역 자리 추첨
+        const pick = seededShuffle(info.reserve.from, rngOf(r.seed, info.reserve.tag)).slice(0, info.reserve.k);
+        ok = ok && pick.every(id => info.seats.includes(id));
+      }
       const res = computeStep(info.method, info.people, info.seats, rngOf(r.seed, info.tag));
-      const mine = Object.values(picks).filter(p => p.part === fl.part || (info.people||[]).includes(p.name));
-      let ok = info.tag === `part|${fl.part}|${info.method}|1`;
       if (info.map) ok = ok && JSON.stringify(res.map) === JSON.stringify(info.map);
       if (info.cards) ok = ok && JSON.stringify(res.cards) === JSON.stringify(info.cards);
-      mine.forEach(p => {
+      Object.values(picks).filter(p => (info.people||[]).includes(p.name)).forEach(p => {
         if (res.map && res.map[p.seat] !== p.name) ok = false;
         if (res.cards && p.card !== undefined && res.cards[p.card] !== p.seat) ok = false;
       });
-      out.push({ok, t:`${fl.part} ${methodName(info.method)} 결과`});
+      out.push({ok, t:`${st.key} ${methodName(info.method)} 결과`});
     }
-  });
+  }
   return out;
 }
 
@@ -397,7 +431,7 @@ function verify(r, parts, picks){
 let G = null;   // {part, method, key, c, g, ...}
 function curGamePart(){
   if (animBusy && G) return G.part;
-  const p = animQ[0]; if (p) return p.part;
+  const p = animQ[0]; if (p) return p.stage || p.part;
   const ph = phase(); return ph && !ph.complete ? ph.part : null;
 }
 function makeCanvas(w,h){
@@ -451,7 +485,7 @@ function drawGame(){
   if (!G || !G.c) return;
   const info = S.parts[G.part]; if (!info) return;
   const shown = shownPicks();
-  const placedSeat = {}; Object.values(shown).forEach(p => { if (p.part === G.part || info.people.includes(p.name)) placedSeat[p.seat] = p.name; });
+  const placedSeat = {}; Object.values(shown).forEach(p => { if (info.people.includes(p.name)) placedSeat[p.seat] = p.name; });
   const ink = css('--ink'), muted = css('--muted'), rail = css('--rail'), surf = css('--surface'), sunk = css('--sunk'), acc = css('--accent');
   const g = G.g; g.clearRect(0,0,G.w,G.h); g.textAlign = 'center'; g.textBaseline = 'middle';
   if (G.method === 'ladder'){
@@ -516,13 +550,13 @@ function setWho(no, w, cls){ $('#who').innerHTML = (no ? `<span class="seatno">$
 /** 대기열의 장면을 하나씩 재생 (누가 눌렀든 모든 화면에서 같은 결과로) */
 function runQueue(){
   if (animBusy || !animQ.length) return;
-  const p = animQ.shift(), info = S.parts[p.part];
+  const p = animQ.shift(), stg = p.stage || p.part, info = S.parts[stg];
   if (!info || !S.picks[p.seat]){ pending.delete(p.seat); return runQueue(); }
   if (document.hidden){ pending.delete(p.seat); draw(); return runQueue(); }   // 화면이 꺼져 있으면 장면 없이 바로 반영
   animBusy = true;
   const fast = animQ.length >= 3;
   const finish = () => { pending.delete(p.seat); animBusy = false; setWho(seatName(p.seat), disp(p.name), 'landed'); draw(); runQueue(); };
-  $('#game').hidden = false; buildGame(p.part); drawGameCard();   // 장면이 도는 동안 버튼 숨김
+  $('#game').hidden = false; buildGame(stg); drawGameCard();   // 장면이 도는 동안 버튼 숨김
   if (p.via === 'ladder' && G.c){
     drawGame(); const col = info.tops.indexOf(p.name);
     G.anim = {p:p.name, pts:G.pts(col), color:PCOL[col%PCOL.length], t:0};
@@ -560,7 +594,7 @@ function drawGameCard(){
   const el = $('#game'), r = S.round;
   const part = r && r.status === 'picking' ? curGamePart() : (animBusy && G ? G.part : null);
   const info = part && S.parts[part];
-  if (!info || info.method === 'choose'){ if (!animBusy){ el.hidden = true; G = null; } return; }
+  if (!info || info.method === 'choose' || info.method === 'assign'){ if (!animBusy){ el.hidden = true; G = null; } return; }
   el.hidden = false;
   const ph = phase(), live = ph && !ph.complete && ph.part === part;
   $('#gtitle').textContent = `${part} · ${methodName(info.method)}`;
@@ -606,10 +640,13 @@ function draw(){
   if (!loaded) st = `<div><div class="turn">불러오는 중…</div></div>`;
   else if (!r) st = `<div><div class="turn">아직 순번을 뽑기 전이에요</div><div class="muted">진행자가 순번을 뽑으면 여기에 차례가 표시돼요. 이 페이지를 열어 두면 자동으로 바뀌어요.</div></div>`;
   else {
-    const facts = `<div class="facts"><span>추첨일 <b>${ymd(r.drawDate)}</b></span><span>자리 이동 <b>${ymd(r.moveDate)}</b></span>${r.untilDate ? `<span>사용 기간 <b>~${ymd(r.untilDate)}</b></span>` : ''}${r.zoneName ? `<span>${esc(FLOW[0].part)} 구역 <b>${esc(r.zoneName)}</b> (${r.zoneHow === 'random' ? '랜덤' : '직접 선택'})</span>` : ''}</div>`;
+    const facts = `<div class="facts"><span>추첨일 <b>${ymd(r.drawDate)}</b></span><span>자리 이동 <b>${ymd(r.moveDate)}</b></span>${r.untilDate ? `<span>사용 기간 <b>~${ymd(r.untilDate)}</b></span>` : ''}${r.zoneName ? `<span>${esc(FLOW[0].part)} 구역 <b>${esc(r.zoneName)}</b> (${r.zoneHow === 'random' ? '랜덤' : '직접 선택'})</span>` : ''}<span>순서 <b>${esc(seqLabel(r.sequence || 'mgmt'))}</b></span></div>`;
     let head;
     if (r.status === 'done') head = `<div class="turn">자리 확정 완료</div>`;
     else if (ph.complete) head = `<div class="turn">모두 자리가 정해졌어요</div><div class="muted">진행자가 확정하면 기록에 저장돼요.</div>`;
+    else if (ph.method === 'assign'){
+      head = `<div class="turn">📌 ${esc(ph.key)} — PL이 자리 지정 중</div><div class="muted">PL이 정한 자리를 진행자가 입력하고 있어요. 남은 ${ph.left.length}명 / ${ph.order.length}명</div>`;
+    }
     else {
       const mine = myName === ph.turn && !S.isAdmin;
       const how = ph.method === 'choose' ? '아래 노란 자리 중 하나를 누르세요' : ph.method === 'cards' ? '위에서 카드 한 장을 누르세요' : ph.method === 'reveal' ? '진행자가 공개해요' : '위 버튼을 누르세요';
@@ -637,9 +674,13 @@ function draw(){
   drawAdmin(ph);
 
   /* 좌석도 */
-  const canChoose = r && r.status === 'picking' && ph && !ph.complete && ph.method === 'choose' && !viewRec;
-  const open = canChoose ? new Set(seatsFor(ph.fi, S.picks)) : new Set();
-  const actor = canChoose ? actorFor(ph) : '';
+  const canChoose = r && r.status === 'picking' && ph && !ph.complete && (ph.method === 'choose' || ph.method === 'assign') && !viewRec;
+  const actor = canChoose ? (ph.method === 'assign' ? (S.isAdmin ? 'PL' : '') : actorFor(ph)) : '';
+  const open = new Set();
+  if (canChoose){
+    const who = ph.method === 'assign' ? ph.left : [actor && ph.method === 'choose' ? actor : ph.turn];
+    who.forEach(n => seatsForPerson(n, S.picks).forEach(id => open.add(id)));
+  }
   const aisleCols = new Set(CFG.blocks.filter(b => b.aisle).map(b => b.c));
   const colT = Array.from({length:CFG.cols}, (_,c) => aisleCols.has(c) && !SEATS.some(s => s.c === c) ? 'var(--aw)' : 'var(--cw)').join(' ');
   let h = `<div class="grid" style="grid-template-columns:${colT};grid-template-rows:repeat(${CFG.rows},var(--ch))">`;
@@ -672,6 +713,12 @@ function draw(){
     const p = S.picks[ui.sel];
     if (p && S.isAdmin) act += `<div class="action"><b>${esc(seatName(ui.sel))} · ${esc(disp(p.name))}</b><span class="muted">${esc(byText(p))}</span><span class="grow"></span>
         <button class="btn" data-act="cancel">닫기</button><button class="btn danger" data-act="clear" ${ui.busy?'disabled':''}>이 자리 비우기</button></div>`;
+    else if (!p && actor && ph && ph.method === 'assign'){
+      const cands = ph.left.filter(n => seatsForPerson(n, S.picks).includes(ui.sel));
+      act += `<div class="action"><b>📌 ${esc(seatName(ui.sel))}</b><select id="assignName">${cands.map(n => `<option value="${esc(n)}">${esc(disp(n))}</option>`).join('')}</select>
+        <span class="muted">PL이 정한 사람을 고르고 입력을 누르세요.</span><span class="grow"></span>
+        <button class="btn" data-act="cancel">취소</button><button class="btn primary" data-act="pick" ${ui.busy || !cands.length ?'disabled':''}>입력</button></div>`;
+    }
     else if (!p && actor) act += `<div class="action"><b>${esc(disp(actor))} → ${esc(seatName(ui.sel))}</b><span class="muted">맞으면 확정을 누르세요. 확정 후에는 진행자만 바꿀 수 있어요.</span><span class="grow"></span>
         <button class="btn" data-act="cancel">취소</button><button class="btn primary" data-act="pick" ${ui.busy?'disabled':''}>확정</button></div>`;
   }
@@ -679,12 +726,13 @@ function draw(){
 
   /* 순번표 */
   if (r && !viewRec){
-    $('#orders').innerHTML = FLOW.map((f,fi) => {
-      const order = r.orders[f.part] || [];
-      return `<div class="card"><h2>${esc(f.part)} 순번 <span class="muted" style="font-size:13px;font-weight:400">${esc(methodName((r.methods||{})[f.part] || 'choose'))} · ${fi === 0 && r.zoneName ? esc(r.zoneName) + ' 안에서' : '남은 자리에서'}</span></h2><ol class="ord">${order.map((n,i) => {
-        const sid = seatOfName(n, shown), p = sid && shown[sid], isNow = ph && !ph.complete && ph.part === f.part && ph.turn === n;
-        return `<li class="${isNow?'now':sid?'done':''}"><span class="n">${i+1}</span><span>${esc(disp(n))}${n===myName && !S.isAdmin?' <span class="tag">나</span>':''}${p ? `<span class="by">${esc(byText(p))}</span>` : ''}</span>
-          <span>${sid ? `<span class="seat">${esc(seatName(sid))}</span>` : isNow && S.isAdmin && i < order.length-1 ? `<button class="btn mini" data-act="toend" data-part="${esc(f.part)}" data-n="${esc(n)}">결석 · 맨 뒤로</button>` : ''}</span></li>`; }).join('')}</ol></div>`;
+    $('#orders').innerHTML = stages(r).map(f => {
+      const order = r.orders[f.key] || [], m = stageMethod(r, f), zp = zonePart();
+      const where = f.parts.length > 1 ? `${zp ? esc(zp) + '는 ' + esc(r.zoneName) + ' 안에서' : ''}` : f.key === zp && r.zoneName ? esc(r.zoneName) + ' 안에서' : '남은 자리에서';
+      return `<div class="card"><h2>${esc(f.key)} ${m === 'assign' ? '명단' : '순번'} <span class="muted" style="font-size:13px;font-weight:400">${esc(methodName(m))} · ${where}</span></h2><ol class="ord">${order.map((n,i) => {
+        const sid = seatOfName(n, shown), p = sid && shown[sid], isNow = ph && !ph.complete && ph.key === f.key && ph.turn === n;
+        return `<li class="${isNow?'now':sid?'done':''}"><span class="n">${m === 'assign' ? '·' : i+1}</span><span>${esc(disp(n))}${f.parts.length > 1 ? ` <span class="muted" style="font-size:11px">${esc((partOfName(n)||'').replace('파트',''))}</span>` : ''}${n===myName && !S.isAdmin?' <span class="tag">나</span>':''}${p ? `<span class="by">${esc(byText(p))}</span>` : ''}</span>
+          <span>${sid ? `<span class="seat">${esc(seatName(sid))}</span>` : isNow && S.isAdmin && i < order.length-1 ? `<button class="btn mini" data-act="toend" data-part="${esc(f.key)}" data-n="${esc(n)}">결석 · 맨 뒤로</button>` : ''}</span></li>`; }).join('')}</ol></div>`;
     }).join('');
   } else $('#orders').innerHTML = '';
 
@@ -707,6 +755,14 @@ function draw(){
   else lg.innerHTML = `<button class="btn mini" data-act="loginopen" style="opacity:.7">진행자</button>`;
 }
 
+/** 구역이 랜덤이면 지금 넣은 숫자로 어느 구역이 나오는지 미리 보여 준다 (순서를 고르는 데 참고) */
+function zonePreviewText(){
+  const f = ui.form, nums = seedNumbers(f.nums);
+  if (!FLOW[0].zones.length || f.zone !== 'random') return '';
+  if (nums.length < 2 || !f.drawDate) return `${FLOW[0].part} 구역: 숫자를 넣으면 보여요`;
+  const z = Math.floor(rngOf(makeSeed(f.drawDate, nums), `zone|${FLOW[0].part}|1`)() * FLOW[0].zones.length);
+  return `이 숫자면 ${FLOW[0].part} 구역: ${FLOW[0].zones[z].name}`;
+}
 function drawAdmin(ph){
   const el = $('#admin');
   if (!S.isAdmin){ el.hidden = true; return; }
@@ -727,21 +783,25 @@ function drawAdmin(ph){
         ${FLOW[0].zones.length ? `<label class="field"><span>${esc(FLOW[0].part)} 구역</span><select id="f_zone">
           <option value="random" ${f.zone==='random'?'selected':''}>추첨 번호로 랜덤</option>
           ${FLOW[0].zones.map((z,i) => `<option value="${i}" ${f.zone===String(i)?'selected':''}>${esc(z.name)} (${esc(z.seats.replace('-','~'))}번) 직접 선택</option>`).join('')}</select></label>` : ''}
-        ${FLOW.map((fl,i) => `<label class="field"><span>${esc(fl.part)} 뽑는 방법</span><select data-method="${esc(fl.part)}">
+        <label class="field"><span>뽑는 순서</span><select id="f_sequence">
+          ${SEQS.map(([k]) => `<option value="${k}" ${f.sequence === k ? 'selected' : ''}>${esc(seqLabel(k))}</option>`).join('')}</select></label>
+        ${f.sequence === 'together' ? `<span class="muted" style="font-size:13px;align-self:center">다 같이 뽑을 때는 모두 '순번 뽑고 직접 고르기'예요. ${esc(FLOW[0].part)}는 구역 안에서만, 나머지는 ${esc(FLOW[0].part)} 자리를 남겨 두고 골라요.</span>`
+          : FLOW.map(fl => `<label class="field"><span>${esc(fl.part)} 뽑는 방법</span><select data-method="${esc(fl.part)}">
           ${METHODS.map(([k,t]) => `<option value="${k}" ${(f.methods[fl.part] || 'choose') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}
         <label class="field"><span>순번 정하기</span><select id="f_orderHow">
           <option value="seed" ${f.orderHow !== 'manual' ? 'selected' : ''}>추첨 번호로 앱이 뽑기</option>
           <option value="manual" ${f.orderHow === 'manual' ? 'selected' : ''}>직접 입력 (오프라인 제비뽑기 결과)</option></select></label>
       </div>
-      ${f.orderHow === 'manual' ? `<div class="note" style="margin-top:10px;color:var(--ink)">제비뽑기에서 나온 <b>순서대로 이름을 누르세요.</b> 누른 순서가 1번, 2번… 순번이 돼요.
-        ${FLOW.map((fl,fi) => { const done = f.manual[fl.part] || [], left = partMembers(fi).filter(n => !done.includes(n));
-          return `<div style="margin-top:10px"><b>${esc(fl.part)}</b> <span class="muted">(${done.length}/${partMembers(fi).length})</span>
-            ${done.length ? `<button class="btn mini" data-act="mundo" data-part="${esc(fl.part)}">하나 되돌리기</button> <button class="btn mini" data-act="mclear" data-part="${esc(fl.part)}">다시</button>` : ''}
+      ${(() => { const sts = stages({sequence:f.sequence}).filter(st => stageMethod({methods:f.methods, sequence:f.sequence}, st) !== 'assign');
+        return f.orderHow === 'manual' && sts.length ? `<div class="note" style="margin-top:10px;color:var(--ink)">제비뽑기에서 나온 <b>순서대로 이름을 누르세요.</b> 누른 순서가 1번, 2번… 순번이 돼요.
+        ${sts.map(st => { const all = stagePeople(st), done = (f.manual[st.key] || []).filter(n => all.includes(n)), left = all.filter(n => !done.includes(n));
+          return `<div style="margin-top:10px"><b>${esc(st.key)}</b> <span class="muted">(${done.length}/${all.length})</span>
+            ${done.length ? `<button class="btn mini" data-act="mundo" data-part="${esc(st.key)}">하나 되돌리기</button> <button class="btn mini" data-act="mclear" data-part="${esc(st.key)}">다시</button>` : ''}
             <div class="row" style="gap:6px;margin-top:6px">${done.map((n,i) => `<span class="tag" style="font-size:13px;padding:4px 10px">${i+1}. ${esc(n)}</span>`).join('')}</div>
-            <div class="row" style="gap:6px;margin-top:6px">${left.map(n => `<button class="btn mini" data-act="madd" data-part="${esc(fl.part)}" data-n="${esc(n)}">${esc(disp(n))}</button>`).join('')}</div></div>`; }).join('')}</div>` : ''}
+            <div class="row" style="gap:6px;margin-top:6px">${left.map(n => `<button class="btn mini" data-act="madd" data-part="${esc(st.key)}" data-n="${esc(n)}">${esc(disp(n))}</button>`).join('')}</div></div>`; }).join('')}</div>` : ''; })()}
       <div class="row" style="align-items:flex-end;margin-top:10px">
         <label class="field" style="flex:1;min-width:200px"><span>참석자가 부른 숫자 (2개 이상, 띄어쓰기로)${needSeed(f) ? '' : ' — 지금 설정에선 필요 없어요'}</span><input id="f_nums" value="${esc(f.nums)}" placeholder="${needSeed(f) ? '예: 7 1004 38 25' : '비워 둬도 돼요'}"></label>
-        <div class="codebox"><small>추첨 번호 미리보기</small><div class="v" id="preview">${esc(preview)}</div></div>
+        <div class="codebox"><small>추첨 번호 미리보기</small><div class="v" id="preview">${esc(preview)}</div><small id="zonePreview">${esc(zonePreviewText())}</small></div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-act="start" ${ui.busy?'disabled':''}>순번 뽑기</button>
         ${ui.confirmNew ? `<span class="note bad" style="padding:6px 10px">지금 회차의 입력이 모두 지워지고, 새로 뽑았다는 기록이 남아요.</span><button class="btn" data-act="cancelnew">취소</button>` : ''}
@@ -751,9 +811,10 @@ function drawAdmin(ph){
   } else {
     const complete = ph && ph.complete;
     h += `<div class="row">
-      ${!complete ? `<label class="row" style="gap:8px"><span>대신 할 사람</span><select id="proxy"><option value="">지금 차례 (${esc(disp(ph.turn))})</option>
-        ${ph.order.filter(n => !ph.placed.has(n) && n !== ph.turn).map(n => `<option value="${esc(n)}" ${ui.proxy===n?'selected':''}>${esc(disp(n))}</option>`).join('')}</select></label>
-        <span class="muted" style="font-size:13px">결석자 대신 진행할 때 써요.</span>` : ''}
+      ${complete ? '' : ph.method === 'assign' ? `<span class="muted" style="font-size:13px">📌 ${esc(ph.key)} PL 지정: 좌석도에서 노란 자리를 누르고 사람을 골라 입력하세요.</span>`
+        : `<label class="row" style="gap:8px"><span>대신 할 사람</span><select id="proxy"><option value="">지금 차례 (${esc(disp(ph.turn))})</option>
+        ${ph.left.filter(n => n !== ph.turn).map(n => `<option value="${esc(n)}" ${ui.proxy===n?'selected':''}>${esc(disp(n))}</option>`).join('')}</select></label>
+        <span class="muted" style="font-size:13px">결석자 대신 진행할 때 써요.</span>`}
       <span class="grow"></span>
       ${complete ? (ui.confirmSave ? `<span class="note">결과를 확정해 기록에 저장할까요?</span><button class="btn" data-act="cancelsave">취소</button><button class="btn primary" data-act="save" ${ui.busy?'disabled':''}>확정</button>`
         : `<button class="btn primary" data-act="asksave">결과 확정 · 기록 저장</button>`) : ''}
@@ -816,6 +877,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'proxy'){ ui.proxy = t.value; ui.sel = null; draw(); }
   else if (t.id === 'f_zone'){ ui.form.zone = t.value; draw(); }
   else if (t.id === 'f_orderHow'){ ui.form.orderHow = t.value; draw(); }
+  else if (t.id === 'f_sequence'){ ui.form.sequence = t.value; draw(); }
   else if (t.dataset.method){ ui.form.methods[t.dataset.method] = t.value; draw(); }
   else if (t.id && t.id.startsWith('d_')) api('dates', {[t.id.slice(2)]: t.value});
 });
@@ -826,6 +888,7 @@ document.addEventListener('input', e => {
     ui.form[t.id.slice(2)] = t.value;
     const nums = seedNumbers(ui.form.nums), p = $('#preview');
     if (p) p.textContent = nums.length >= 2 && ui.form.drawDate ? seedCode(makeSeed(ui.form.drawDate, nums)) : '----–----';
+    const zp = $('#zonePreview'); if (zp) zp.textContent = zonePreviewText();
   }
 });
 window.addEventListener('resize', () => { if (G && G.c && !animBusy){ G.key = ''; drawGameCard(); } });
