@@ -112,6 +112,17 @@ button.block{border:0;font:inherit;font-size:14px;cursor:pointer}
 .edit .sel{box-shadow:0 0 0 3px var(--accent) !important;opacity:1}
 .editpanel{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);display:flex;flex-direction:column;gap:10px}
 .editpanel .row{align-items:flex-end}
+.vopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:10px}
+.vopt{border:1.5px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.vopt.mine{border-color:var(--accent);background:var(--accent-soft)}
+.vopt.win{border-color:var(--ok);background:var(--ok-soft)}
+.vopt h3{margin:0;font-size:16px}
+.vopt p{margin:0;font-size:13.5px;line-height:1.5}
+.vopt .tags{display:flex;gap:5px;flex-wrap:wrap}
+.vopt .tags span{font-size:11px;padding:1px 7px;border-radius:9px;background:var(--sunk);color:var(--muted)}
+.vbar{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.vbar i{display:block;height:100%;background:var(--accent)}
+.vopt .foot{display:flex;align-items:center;gap:8px;margin-top:auto}
 .legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;border:1.5px solid;vertical-align:-1px;margin-right:4px}
 .action{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--turn-soft);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -155,6 +166,7 @@ details summary{cursor:pointer;color:var(--muted)}
   <div id="offline" class="note bad offline" hidden>서버와 연결이 잠시 끊겼어요. 인터넷 연결을 확인해 주세요. 다시 연결되면 자동으로 이어져요.</div>
   <div class="card status" id="status"><div><div class="turn">불러오는 중…</div></div></div>
   <div class="card" id="mecard" hidden></div>
+  <div class="card" id="votecard" hidden></div>
   <div class="card" id="game" hidden>
     <div class="gamehead"><h2 style="margin:0" id="gtitle"></h2><span class="muted" id="gsub" style="font-size:13px"></span></div>
     <div class="gamebox" id="gbox"></div>
@@ -211,6 +223,16 @@ const METHODS = [
   ['choose','🔢 순번 뽑고 직접 고르기'], ['cards','🃏 카드 뽑기'], ['assign','📌 PL 지정 (진행자가 입력)']
 ];
 const COMPUTED = ['ladder','pinball','roulette','reveal','cards'];
+/* 투표 화면에 보여 줄 방법 설명 */
+const MINFO = {
+  ladder:  {tags:['결과는 추첨으로 정해짐','장면 구경'], d:'위에 이름, 아래에 자리 번호가 있는 사다리예요. 자기 차례에 [사다리 출발]을 누르면 내 이름에서 줄을 따라 내려가 도착한 번호가 내 자리예요. 사다리 모양은 추첨 번호로 미리 정해져 있어요.'},
+  pinball: {tags:['결과는 추첨으로 정해짐','장면 구경'], d:'자기 차례에 [구슬 떨어뜨리기]를 누르면 구슬이 핀에 튕기며 내려가 바닥 칸(자리 번호)에 들어가요. 들어간 칸이 내 자리예요. 어느 칸에 들어갈지는 추첨 번호로 미리 정해져 있어요.'},
+  roulette:{tags:['결과는 추첨으로 정해짐','장면 구경'], d:'남은 자리 번호가 적힌 룰렛이에요. 자기 차례에 [룰렛 돌리기]를 누르면 돌다가 멈춘 번호가 내 자리예요. 앞사람이 앉은 자리는 룰렛에서 빠져요. 어디서 멈출지는 추첨 번호로 미리 정해져 있어요.'},
+  reveal:  {tags:['결과는 추첨으로 정해짐','가장 빠름'], d:'진행자가 버튼을 누를 때마다 한 명씩 "누구 → 몇 번 자리"가 공개돼요. 각자 누를 건 없어요. 한 번에 모두 공개할 수도 있어요.'},
+  cards:   {tags:['운 + 내가 고름'], d:'자리 번호가 숨겨진 카드가 뒤집혀 깔려 있어요. 자기 차례에 카드 한 장을 직접 골라 누르면 뒤집히고, 그 번호가 내 자리예요. 카드 섞인 순서는 추첨 번호로 정해져 아무도 몰라요.'},
+  choose:  {tags:['원하는 자리 고름','순번이 중요'], d:'순번만 추첨으로 정해요. 자기 차례가 오면 남은 자리 중 원하는 자리를 좌석도에서 직접 골라요. 앞 순번일수록 고를 자리가 많아요.'},
+  assign:  {tags:['추첨 없음'], d:'추첨 없이 PL이 자리를 정하고, 진행자가 그대로 입력해요.'}
+};
 const SEQS = [['mgmt','먼저'], ['fin','먼저'], ['together','다 같이 한 줄 순번']];
 const methodName = k => ((METHODS.find(m => m[0] === k) || [k,k])[1]).replace(/^\S+\s/, '');
 const GAMES = ['ladder','pinball','roulette'];
@@ -253,7 +275,9 @@ let myName = LS.get('jari.myName') || '';
 const DEVICE = LS.get('jari.device') || (() => { const d = 'd' + Math.random().toString(36).slice(2,10); LS.set('jari.device', d); return d; })();
 const auth = () => ({pin: LS.get('jari.pin') || '', device: DEVICE});
 let loginOpen = false;
+const VOTE_DEFAULT = ['ladder','pinball','roulette','reveal','cards','choose'];
 let ui = {sel:null, proxy:'', busy:false, msg:null, verify:null, viewRec:null, confirmNew:false, confirmSave:false, confirmReset:false,
+  vform:{part:'', opts:VOTE_DEFAULT.slice()}, voteApplied:null,
   form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random', methods:{}, orderHow:'seed', manual:{}, sequence:'mgmt'}};
 /* 추첨 번호(참석자 숫자)가 필요한 경우: 순번을 추첨하거나, 구역을 랜덤으로 하거나, 게임·카드 방식을 쓸 때 */
 const methodOf = (f, part) => f.sequence === 'together' ? 'choose' : (f.methods[part] || 'choose');
@@ -325,6 +349,8 @@ function take(j){
   const prev = S.picks || {}, firstLoad = !loaded || S.version < 0;
   S = j; S.parts = S.parts || {}; S.url = location.origin + location.pathname.replace(/index\.html$/, '');
   if (j.config) initConfig(j.config);
+  const v = j.vote;
+  if (v && v.status === 'closed' && v.result && ui.voteApplied !== v.id){ ui.form.methods[v.part] = v.result; ui.voteApplied = v.id; }
   // 새로 정해진 자리 → 장면 대기열 / 사라진 자리 → 대기 해제
   for (const k of [...pending]) if (!S.picks[k]) pending.delete(k);
   animQ = animQ.filter(p => S.picks[p.seat]);
@@ -677,6 +703,7 @@ function draw(){
       <span class="muted" style="font-size:13px">내 차례가 되면 버튼이나 자리를 누를 수 있어요. 어느 기기에서 했는지 함께 기록돼요.</span></div>`;
   } else mc.hidden = true;
 
+  drawVote(r);
   drawGameCard();
   drawAdmin(ph);
 
@@ -761,6 +788,49 @@ function drawOrdersAndRest(r, ph, shown, viewRec){
   if (S.isAdmin) lg.innerHTML = '';
   else if (loginOpen) lg.innerHTML = `<input id="pin" type="password" inputmode="numeric" placeholder="진행자 PIN" style="width:140px" autocomplete="off"><button class="btn primary mini" data-act="login">들어가기</button><button class="btn mini" data-act="loginclose">닫기</button>`;
   else lg.innerHTML = `<button class="btn mini" data-act="loginopen" style="opacity:.7">진행자</button>`;
+}
+
+/* ---------- 뽑는 방법 투표 ---------- */
+function drawVote(r){
+  const el = $('#votecard'), v = S.vote;
+  if (!v || (r && r.status === 'picking')){ el.hidden = true; return; }
+  el.hidden = false;
+  const open = v.status === 'open', total = v.eligible.length, n = v.voters.length;
+  const mine = LS.get('jari.vote.' + v.id) || '';
+  const canVote = open && v.eligible.includes(myName);
+  const max = Math.max(1, ...v.options.map(m => v.counts[m]));
+  const top = Math.max(...v.options.map(m => v.counts[m])), leaders = v.options.filter(m => v.counts[m] === top);
+  let h = `<div class="row"><h2 style="margin:0">🗳️ ${esc(v.part)} 뽑는 방법 투표</h2>
+    ${open ? `<span class="tag">투표 중 · ${n}/${total}명</span>` : `<span class="tag" style="background:var(--ok-soft);color:var(--ok)">마감 · ${esc(methodName(v.result))}${v.picked ? ' (동점, 진행자 결정)' : ''}</span>`}</div>`;
+  if (open && !S.isAdmin) h += `<div class="row" style="margin-top:8px"><label class="row" style="gap:8px"><span>나는</span>
+      <select id="voteName"><option value="">이름을 고르세요</option>${v.eligible.map(nm => `<option value="${esc(nm)}" ${myName===nm?'selected':''}>${esc(disp(nm))}</option>`).join('')}</select></label>
+      <span class="muted" style="font-size:13px">${canVote ? '설명을 읽고 하나를 누르세요. 마감 전에는 바꿀 수 있어요.' : `${esc(v.part)} 사람만 투표해요.`}</span></div>`;
+  else if (open) h += `<div class="muted" style="font-size:13px;margin-top:6px">팀원들이 각자 폰에서 이름을 고르고 투표해요. 누가 무엇을 골랐는지는 안 보이고 표 수만 보여요.</div>`;
+  h += `<div class="vopts">${v.options.map(m => { const c = v.counts[m], info = MINFO[m] || {tags:[], d:''};
+    const cls = !open && v.result === m ? ' win' : open && mine === m && myName ? ' mine' : '';
+    return `<div class="vopt${cls}"><h3>${esc((METHODS.find(x => x[0] === m) || [m,m])[1].replace(/ \(.*\)$/, ''))}</h3>
+      <div class="tags">${info.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>
+      <p>${esc(info.d)}</p>
+      <div class="foot"><div class="vbar grow"><i style="width:${Math.round(c/max*100)}%"></i></div><b style="min-width:36px;text-align:right">${c}표</b></div>
+      ${open && !S.isAdmin ? `<button class="btn ${mine === m && myName ? '' : 'primary'}" data-act="vote" data-m="${m}" ${canVote && !ui.busy ? '' : 'disabled'}>${mine === m && myName ? '✔ 내가 고른 방법' : '이걸로 투표'}</button>` : ''}
+      ${open && S.isAdmin && leaders.length > 1 && leaders.includes(m) && n ? `<button class="btn" data-act="vclose" data-m="${m}" ${ui.busy?'disabled':''}>동점 — 이걸로 마감</button>` : ''}</div>`; }).join('')}</div>`;
+  const notYet = v.eligible.filter(x => !v.voters.includes(x));
+  h += `<div class="muted" style="font-size:13px;margin-top:10px">투표함: ${v.voters.map(esc).join(', ') || '아직 없음'}${open && notYet.length ? ` · 아직: ${notYet.map(esc).join(', ')}` : ''}</div>`;
+  if (S.isAdmin) h += `<div class="row" style="margin-top:10px">${open
+      ? (leaders.length > 1 && n ? `<span class="muted" style="font-size:13px">동점이라 위에서 하나를 골라 마감해요.</span>` : `<button class="btn primary" data-act="vclose" ${ui.busy || !n ? 'disabled' : ''}>투표 마감</button>`)
+      : `<span class="muted" style="font-size:13px">결과가 진행자 메뉴의 '${esc(v.part)} 뽑는 방법'에 들어갔어요.</span>`}
+      <span class="grow"></span><button class="btn mini danger" data-act="vcancel" ${ui.busy?'disabled':''}>${open ? '투표 취소' : '투표 카드 닫기'}</button></div>`;
+  el.innerHTML = h;
+}
+function voteAdminHTML(){
+  const v = S.vote, f = ui.vform;
+  if (!f.part) f.part = FLOW[FLOW.length-1].part;
+  if (v && v.status === 'open') return `<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><b>뽑는 방법 투표</b><span class="muted" style="font-size:13px">${esc(v.part)} 투표 중 (${v.voters.length}/${v.eligible.length}명) — 위 투표 카드에서 마감하세요.</span></div>`;
+  return `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div class="row"><b>뽑는 방법 투표</b>
+    <span class="muted" style="font-size:13px">팀원들이 각자 폰에서 방법 설명을 보고 투표해요. 마감하면 결과가 위 '뽑는 방법'에 들어가요.</span></div>
+    <div class="row" style="margin-top:8px"><label class="field"><span>투표할 파트</span><select id="v_part">${FLOW.map(fl => `<option ${f.part===fl.part?'selected':''}>${esc(fl.part)}</option>`).join('')}</select></label>
+      <div class="field"><span>후보</span><div class="row" style="gap:10px">${METHODS.map(([k,t]) => `<label style="font-size:14px;white-space:nowrap"><input type="checkbox" data-vopt="${k}" ${f.opts.includes(k)?'checked':''}> ${esc(t.replace(/ \(.*\)$/, ''))}</label>`).join('')}</div></div></div>
+    <div class="row" style="margin-top:8px"><button class="btn" data-act="vopen" ${ui.busy || f.opts.length < 2 ? 'disabled' : ''}>투표 열기</button></div></div>`;
 }
 
 function legendHTML(){
@@ -957,6 +1027,7 @@ function drawAdmin(ph){
       ${(r.history||[]).length ? `<div class="muted" style="font-size:13px;margin-top:8px">이번에 앞서 뽑고 버린 순번: ${r.history.map(x => esc(x.code)).join(', ')} (진행 기록에 남아요)</div>` : ''}`;
   }
   const busyRound = r && r.status === 'picking';
+  if (!busyRound) h += voteAdminHTML();
   h += `<div class="row" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><b>좌석 배치</b>
     <span class="muted" style="font-size:13px">${busyRound ? '진행 중인 회차가 끝나면(확정 또는 연습 지우기) 바꿀 수 있어요.' : '자리 번호, 팀장님 자리·고정석, 예비좌석, 기둥 같은 칸을 직접 바꿔요.'}${S.layoutCustom ? ' · 지금은 직접 바꾼 배치를 쓰는 중' : ''}</span>
     <span class="grow"></span><button class="btn" data-act="editopen" ${busyRound || ui.edit ? 'disabled' : ''}>좌석 배치 편집</button></div>`;
@@ -1000,6 +1071,10 @@ document.addEventListener('click', e => {
   else if (k === 'canceldel'){ ui.confirmDel = null; draw(); }
   else if (k === 'delrec'){ const id = a.dataset.id; api('delrec', {id}).then(ok => { ui.confirmDel = null; if (ok){ if (ui.viewRec === id) ui.viewRec = null; const n = S.sheetRows;
     ui.msg = {text: n > 0 ? `확정 기록을 지웠어요. 구글 시트 '기록' 탭의 ${n}줄도 함께 지웠어요.` : n === 0 ? '확정 기록을 지웠어요. (시트 \'기록\' 탭에는 지울 줄이 없었어요)' : '확정 기록을 지웠어요. 시트 \'기록\' 탭 줄은 지우지 못했으니 시트에서 직접 지워 주세요.', kind:'ok'}; } draw(); }); }
+  else if (k === 'vote'){ const m = a.dataset.m, v = S.vote; api('vote', {name:myName, method:m}).then(ok => { if (ok){ LS.set('jari.vote.' + v.id, m); ui.msg = null; draw(); } }); }
+  else if (k === 'vopen') api('voteOpen', {part:ui.vform.part, options:ui.vform.opts}).then(ok => { if (ok){ ui.msg = {text:'투표를 열었어요. 팀원들에게 주소를 보내 주세요.', kind:'ok'}; draw(); } });
+  else if (k === 'vclose') api('voteClose', {pick:a.dataset.m || ''}).then(ok => { if (ok){ ui.msg = {text:`투표 결과: ${S.vote.part} → ${methodName(S.vote.result)}`, kind:'ok'}; draw(); } });
+  else if (k === 'vcancel'){ if (S.vote.status !== 'open' || confirm('투표를 취소할까요? 들어온 표가 모두 지워져요.')) api('voteCancel'); }
   else if (k === 'editopen'){ editOpen(); draw(); $('#map').scrollIntoView({behavior:'smooth', block:'start'}); }
   else if (k === 'ecancel'){ ui.edit = null; ui.msg = null; draw(); }
   else if (k === 'edesel'){ ui.edit.sel = null; draw(); }
@@ -1016,6 +1091,9 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'myName'){ myName = t.value; LS.set('jari.myName', myName); ui.sel = null; draw(); }
+  else if (t.id === 'voteName'){ myName = t.value; LS.set('jari.myName', myName); draw(); }
+  else if (t.id === 'v_part'){ ui.vform.part = t.value; }
+  else if (t.dataset.vopt){ const o = ui.vform.opts.filter(x => x !== t.dataset.vopt); if (t.checked) o.push(t.dataset.vopt); ui.vform.opts = METHODS.map(x => x[0]).filter(x => o.includes(x)); draw(); }
   else if (t.id === 'proxy'){ ui.proxy = t.value; ui.sel = null; draw(); }
   else if (t.id === 'f_zone'){ ui.form.zone = t.value; draw(); }
   else if (t.id === 'f_orderHow'){ ui.form.orderHow = t.value; draw(); }
