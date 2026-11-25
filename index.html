@@ -157,6 +157,38 @@ details summary{cursor:pointer;color:var(--muted)}
 .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--accent-soft);border-radius:8px;margin-bottom:12px}
 .share .url{font-family:var(--f-mono);font-size:16px;font-weight:700;color:var(--accent);user-select:all;word-break:break-all}
 .offline{position:sticky;top:0;z-index:5}
+/* 순번 공개 장면 */
+.oshow{position:fixed;inset:0;z-index:50;background:rgba(8,10,16,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.oshow .box{background:var(--surface);color:var(--ink);border-radius:14px;width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.oshow h2{margin:0;font-size:20px}
+.oshow .sub{font-size:13px;color:var(--muted);margin:2px 0 12px}
+.oslots{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.oslots li{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;padding:7px 10px;border-radius:8px;background:var(--sunk);font-size:16px;min-height:40px}
+.oslots li .n{font-family:var(--f-mono);color:var(--muted);text-align:right;font-weight:700}
+.oslots li .nm{font-weight:700}
+.oslots li.wait .nm{color:var(--muted);font-weight:400}
+.oslots li.roll{box-shadow:0 0 0 2px var(--turn)}
+.oslots li.roll .nm{color:var(--muted)}
+.oslots li.land .nm{animation:pop .35s ease}
+.oslots li.first{background:var(--turn-soft);box-shadow:0 0 0 2px var(--turn)}
+.oslots li.first .nm{color:var(--turn);font-size:19px}
+.oshow .foot{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.oshow .msg{margin-right:auto;font-size:14px}
+.oslots.cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:5px}
+.oslots.cols li{font-size:14px;min-height:34px;padding:5px 8px;grid-template-columns:24px 1fr}
+.oslots.cols li.first .nm{font-size:15px}
+.ocards{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.ocard{height:76px;perspective:600px}
+.ocard .in{position:relative;width:100%;height:100%;transition:transform .55s;transform-style:preserve-3d}
+.ocard.open .in{transform:rotateY(180deg)}
+.ocard .fa,.ocard .ba{position:absolute;inset:0;border-radius:9px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4px}
+.ocard .ba{background:repeating-linear-gradient(45deg,#3d66c9 0 8px,#3560c2 8px 16px);color:#fff;font-weight:700;font-size:20px}
+.ocard .fa{transform:rotateY(180deg);background:var(--surface);border:2px solid var(--accent);font-weight:700;font-size:15px;line-height:1.25}
+.ocard small{font-size:11px;font-weight:400;opacity:.85}
+.ocard.next .ba{box-shadow:0 0 0 3px var(--turn)}
+.ocard.first .fa{border-color:var(--turn);background:var(--turn-soft);color:var(--turn);font-size:17px}
+.ocard.shake{animation:shake .45s ease infinite}
+@keyframes shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
 @media (prefers-reduced-motion:no-preference){ .cell{transition:background .2s, box-shadow .2s} }
 </style>
 </head>
@@ -278,7 +310,7 @@ let loginOpen = false;
 const VOTE_DEFAULT = ['ladder','pinball','roulette','reveal','cards','choose'];
 let ui = {sel:null, proxy:'', busy:false, msg:null, verify:null, viewRec:null, confirmNew:false, confirmSave:false, confirmReset:false,
   vform:{part:'', opts:VOTE_DEFAULT.slice()}, voteApplied:null,
-  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random', methods:{}, orderHow:'seed', manual:{}, sequence:'mgmt'}};
+  form:{drawDate:today(), moveDate:'', untilDate:'', memo:'', nums:'', zone:'random', methods:{}, orderHow:'seed', manual:{}, sequence:'mgmt', show: LS.get('jari.show') || 'slot'}};
 /* 추첨 번호(참석자 숫자)가 필요한 경우: 순번을 추첨하거나, 구역을 랜덤으로 하거나, 게임·카드 방식을 쓸 때 */
 const methodOf = (f, part) => f.sequence === 'together' ? 'choose' : (f.methods[part] || 'choose');
 const needSeed = f => { const sts = stages({sequence:f.sequence}); const m = st => stageMethod({methods:f.methods, sequence:f.sequence}, st);
@@ -346,8 +378,11 @@ async function gs(fn, ...args){
 function take(j){
   if (!j || j.same) return false;
   if (loaded && S.version >= 0 && typeof j.version === 'number' && j.version < S.version) return false;   // 늦게 도착한 옛날 응답은 무시
-  const prev = S.picks || {}, firstLoad = !loaded || S.version < 0;
-  S = j; S.parts = S.parts || {}; S.url = location.origin + location.pathname.replace(/index\.html$/, '');
+  const prev = S.picks || {}, firstLoad = !loaded || S.version < 0, prevRound = S.round;
+  // 진행자가 새로 순번을 뽑았으면 모든 화면에서 순번 공개 장면을 띄운다 (페이지를 처음 연 사람은 [순번 공개 다시 보기]로)
+  if (!firstLoad && j.round && j.round.status === 'picking' && j.round.startedAt && (!prevRound || prevRound.startedAt !== j.round.startedAt) && !document.hidden)
+    setTimeout(() => orderShow(showStages(j.round)), 0);
+  S = j;S.parts = S.parts || {}; S.url = location.origin + location.pathname.replace(/index\.html$/, '');
   if (j.config) initConfig(j.config);
   const v = j.vote;
   if (v && v.status === 'closed' && v.result && ui.voteApplied !== v.id){ ui.form.methods[v.part] = v.result; ui.voteApplied = v.id; }
@@ -383,7 +418,7 @@ async function poll(){
   setTimeout(poll, document.hidden ? 15000 : (animBusy || animQ.length ? 2000 : 3000));
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden){ animTok++; if (G){ G.anim = null; G.ball = null; G.spin = null; G.angle = 0; } animQ.forEach(p => pending.delete(p.seat)); animQ = []; pending.clear(); animBusy = false; draw(); return; }
+  if (document.hidden){ closeOrderShow(); animTok++;if (G){ G.anim = null; G.ball = null; G.spin = null; G.angle = 0; } animQ.forEach(p => pending.delete(p.seat)); animQ = []; pending.clear(); animBusy = false; draw(); return; }
   if (loaded) gs('jariState', auth(), S.version).then(j => { if (take(j)){ draw(); runQueue(); } }, () => {});
 });
 async function login(pin){
@@ -407,7 +442,7 @@ async function startRound(){
   if (needSeed(f) && nums.length < 2){ ui.msg = {text:'참석자가 부른 숫자를 2개 이상 넣어 주세요.', kind:'bad'}; return draw(); }
   if (!f.drawDate){ ui.msg = {text:'추첨일을 넣어 주세요.', kind:'bad'}; return draw(); }
   const methods = {}; FLOW.forEach(fl => methods[fl.part] = methodOf(f, fl.part));
-  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, zone:f.zone, methods, orderHow:f.orderHow, sequence:f.sequence};
+  const round = {drawDate:f.drawDate, moveDate:f.moveDate, untilDate:f.untilDate, memo:f.memo, nums, zone:f.zone, methods, orderHow:f.orderHow, sequence:f.sequence, show:f.show};
   if (f.orderHow === 'manual'){
     round.orders = {};
     for (const st of stages({sequence:f.sequence})){
@@ -660,6 +695,187 @@ function drawGameCard(){
   else if (!animBusy && live && !$('#who').textContent) setWho('', '', '');
 }
 
+/* ---------- 순번 공개 장면 ---------- */
+/* 순번이 자리 고르는 데 쓰이는 단계만 (직접 고르기·카드). 오프라인 제비뽑기 입력은 제외 */
+const showStages = r => !r || r.orderHow === 'manual' ? [] : stages(r).filter(st => ['choose','cards'].includes(stageMethod(r, st))).map(st => st.key);
+const SHOWS = [['slot','🎰 슬롯 (뒤 순번부터 공개)'], ['lotto','🎱 로또 추첨기 (1번부터 뽑기)'], ['cards','🃏 카드 뒤집기 (뒤 순번부터)'], ['none','없음 (바로 표시)']];
+const shortName = n => n.length >= 3 ? n.slice(1) : n;   // 공에 쓸 이름 (성 빼고)
+let oTok = 0;
+function closeOrderShow(){ oTok++; const el = $('#oshow'); if (el) el.remove(); }
+/** keys: 보여 줄 단계 · opt: {style, orders, demo} — demo 는 진행자 미리보기(추첨과 무관한 임의 순서) */
+async function orderShow(keys, opt){
+  opt = opt || {};
+  closeOrderShow();
+  const r = S.round, orders = opt.orders || (r && r.orders) || {};
+  const style = opt.style || (r && r.show) || 'slot';
+  keys = (keys || []).filter(k => (orders[k] || []).length);
+  if (!keys.length || style === 'none') return;
+  const tok = oTok, alive = () => tok === oTok, ctl = {skip:false};
+  const wait = ms => new Promise(res => { const t0 = Date.now(); const tick = () => (!alive() || ctl.skip || Date.now() - t0 >= ms) ? res() : setTimeout(tick, 30); tick(); });
+  const el = document.createElement('div'); el.className = 'oshow'; el.id = 'oshow';
+  el.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="순번 공개"><h2 id="oTitle"></h2><div class="sub" id="oSub"></div><div id="oStage"></div>
+    <div class="foot"><span class="msg" id="oMsg"></span><button class="btn" id="oSkip">결과 바로 보기</button><button class="btn primary" id="oClose" hidden>닫기</button></div></div>`;
+  document.body.appendChild(el);
+  el.querySelector('#oSkip').onclick = () => { ctl.skip = true; };
+  el.querySelector('#oClose').onclick = closeOrderShow;
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  ctl.skip = !!reduce;
+  for (let s = 0; s < keys.length && alive(); s++){
+    const key = keys[s], order = orders[key].slice(), n = order.length;
+    const multi = order.some(x => partOfName(x) !== partOfName(order[0]));
+    const nameHTML = x => esc(disp(x)) + (multi ? ` <span class="muted" style="font-size:11px">${esc((partOfName(x)||'').replace('파트',''))}</span>` : '');
+    el.querySelector('#oTitle').textContent = `${(SHOWS.find(x => x[0] === style) || SHOWS[0])[1].split(' ')[0]} ${key} 순번 공개${opt.demo ? ' (미리보기)' : ''}`;
+    el.querySelector('#oSub').textContent = opt.demo ? '진행자 미리보기 — 임의 순서예요. 실제 순번은 추첨 번호로 정해져요.'
+      : `추첨 번호 ${r.code} · ${n}명 · ${style === 'lotto' ? '1번부터 뽑아요' : '뒤 순번부터 공개해요'}`;
+    el.querySelector('#oMsg').textContent = '';
+    const ctx = {el, stage: el.querySelector('#oStage'), order, n, nameHTML, alive, wait, ctl};
+    await (style === 'lotto' ? showLotto(ctx) : style === 'cards' ? showCards(ctx) : showSlot(ctx));
+    if (!alive()) return;
+    const meth = opt.demo ? 'choose' : stageMethod(r, {key, parts:[key]});
+    el.querySelector('#oMsg').innerHTML = `<b>1번 ${esc(disp(order[0]))}</b>님부터 ${meth === 'cards' ? '카드를 골라요' : '자리를 골라요'}`;
+    if (s < keys.length - 1){ ctl.skip = !!reduce; await wait(2500); }
+  }
+  if (!alive()) return;
+  el.querySelector('#oSkip').hidden = true; el.querySelector('#oClose').hidden = false;
+}
+function slotList(ctx){
+  ctx.stage.innerHTML = `<ol class="oslots">${ctx.order.map((_, i) => `<li class="wait" data-i="${i}"><span class="n">${i+1}</span><span class="nm">?</span></li>`).join('')}</ol>`;
+  return i => ctx.stage.querySelector(`li[data-i="${i}"]`);
+}
+function landSlot(ctx, li, i){ li.className = 'land' + (i === 0 ? ' first' : ''); li.querySelector('.nm').innerHTML = ctx.nameHTML(ctx.order[i]); }
+
+/* 🎰 슬롯: 뒤 순번부터 이름이 돌다가 멈춤 */
+async function showSlot(ctx){
+  const {order, n, alive, ctl} = ctx, li = slotList(ctx);
+  const step = n > 14 ? 260 : n > 8 ? 420 : 650;
+  for (let i = n - 1; i >= 0 && alive(); i--){
+    const slot = li(i), nm = slot.querySelector('.nm'), pool = order.slice(0, i + 1);
+    if (!ctl.skip){
+      slot.className = 'roll'; slot.scrollIntoView({block:'nearest'});
+      const t0 = Date.now(), dur = i === 0 ? 1800 : i === 1 && n > 2 ? 1000 : step;
+      let c = Math.floor(Math.random() * pool.length);
+      while (alive() && !ctl.skip && Date.now() - t0 < dur){
+        nm.textContent = disp(pool[c++ % pool.length]);
+        await new Promise(res => setTimeout(res, Math.min(160, 55 + (Date.now() - t0) / dur * 110)));
+      }
+    }
+    if (!alive()) return;
+    landSlot(ctx, slot, i);
+    if (!ctl.skip) await ctx.wait(i === 0 ? 300 : 120);
+  }
+  li(0).scrollIntoView({block:'nearest'});
+}
+
+/* 🃏 카드 뒤집기: 순번이 적힌 카드를 뒤 순번부터 한 장씩 뒤집음 */
+async function showCards(ctx){
+  const {order, n, alive, ctl} = ctx;
+  ctx.stage.innerHTML = `<div class="ocards">${order.map((_, i) => `<div class="ocard" data-i="${i}"><div class="in"><div class="ba"><small>${i+1}번</small>?</div><div class="fa"><small>${i+1}번</small><span></span></div></div></div>`).join('')}</div>`;
+  const card = i => ctx.stage.querySelector(`.ocard[data-i="${i}"]`);
+  const step = n > 14 ? 350 : n > 8 ? 550 : 800;
+  for (let i = n - 1; i >= 0 && alive(); i--){
+    const c = card(i); c.querySelector('.fa span').innerHTML = ctx.nameHTML(order[i]);
+    if (!ctl.skip){
+      c.classList.add(i === 0 ? 'shake' : 'next'); c.scrollIntoView({block:'nearest'});
+      await ctx.wait(i === 0 ? 1600 : i === 1 && n > 2 ? 900 : step * .5);
+      c.classList.remove('shake', 'next');
+    }
+    if (!alive()) return;
+    c.classList.add('open'); if (i === 0) c.classList.add('first');
+    if (!ctl.skip) await ctx.wait(i === 0 ? 600 : step * .5);
+  }
+  card(0).scrollIntoView({block:'nearest'});
+}
+
+/* 🎱 로또 추첨기: 이름 공이 통 안에서 섞이다가 1번부터 한 개씩 빠져나옴 */
+async function showLotto(ctx){
+  const {order, n, alive, ctl} = ctx, li = slotList(ctx);
+  ctx.stage.querySelector('.oslots').classList.add('cols');
+  const cv = document.createElement('canvas'); ctx.stage.prepend(cv);
+  const W = Math.max(280, Math.min(440, ctx.stage.clientWidth || 400)), H = 250, dpr = window.devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.cssText = `display:block;width:${W}px;height:${H}px;margin:0 auto 10px;max-width:100%`;
+  const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  const cx = W * .38, cy = 100, R = 90, br = n <= 8 ? 20 : n <= 14 ? 17 : n <= 22 ? 14 : 12;
+  const yT = cy + R + 22, xT = W - 44, BIG = 30;
+  const balls = sortCode(order).map((name, i) => { const a = Math.random() * Math.PI * 2, d = Math.random() * (R - br - 4);
+    return {name, col: PCOL[i % PCOL.length], x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4}; });
+  let fly = null, shown = null, run = true;
+  const muted = css('--muted'), line = css('--line');
+  function drawBall(b, x, y, r, big){
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = b.col; g.fill(); g.lineWidth = 2; g.strokeStyle = 'rgba(0,0,0,.25)'; g.stroke();
+    g.beginPath(); g.arc(x - r * .35, y - r * .38, r * .26, 0, Math.PI * 2); g.fillStyle = 'rgba(255,255,255,.35)'; g.fill();
+    g.fillStyle = '#fff'; g.font = `700 ${Math.round(r * (big ? .5 : .6))}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(big ? b.name : shortName(b.name), x, y + 1);
+  }
+  function physics(){
+    for (const b of balls){
+      b.vx += (Math.random() - .5) * 1.4; b.vy += (Math.random() - .5) * 1.4;
+      if (b.y > cy + R * .3 && Math.random() < .25){ b.vy -= 2.5 + Math.random() * 3.5; b.vx += (Math.random() - .5) * 5; }   // 아래에서 바람이 불어 올림
+      b.vy += .38; b.vx *= .99; b.vy *= .99;
+      const sp = Math.hypot(b.vx, b.vy); if (sp > 11){ b.vx *= 11 / sp; b.vy *= 11 / sp; }
+      b.x += b.vx; b.y += b.vy;
+      const dx = b.x - cx, dy = b.y - cy, d = Math.hypot(dx, dy) || .01, lim = R - br - 2;
+      if (d > lim){ const nx = dx / d, ny = dy / d, dot = b.vx * nx + b.vy * ny; if (dot > 0){ b.vx -= 1.95 * dot * nx; b.vy -= 1.95 * dot * ny; } b.x = cx + nx * lim; b.y = cy + ny * lim; }
+    }
+    for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++){
+      const a = balls[i], b = balls[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || .01, m = br * 2 - d;
+      if (m > 0){ const nx = dx / d, ny = dy / d; a.x -= nx * m / 2; a.y -= ny * m / 2; b.x += nx * m / 2; b.y += ny * m / 2;
+        const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny; if (rv < 0){ a.vx += rv * nx; a.vy += rv * ny; b.vx -= rv * nx; b.vy -= rv * ny; } }
+    }
+  }
+  function along(pts, t){
+    const seg = []; let tot = 0;
+    for (let i = 1; i < pts.length; i++){ const l = Math.hypot(pts[i][0] - pts[i-1][0], pts[i][1] - pts[i-1][1]); seg.push(l); tot += l; }
+    let d = t * tot;
+    for (let i = 0; i < seg.length; i++){ if (d <= seg[i] || i === seg.length - 1){ const k = seg[i] ? Math.min(1, d / seg[i]) : 1;
+      return [pts[i][0] + (pts[i+1][0] - pts[i][0]) * k, pts[i][1] + (pts[i+1][1] - pts[i][1]) * k]; } d -= seg[i]; }
+  }
+  function paint(){
+    g.clearRect(0, 0, W, H);
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.lineWidth = br * 2 + 8; g.strokeStyle = 'rgba(127,140,170,.18)';
+    g.beginPath(); g.moveTo(cx, cy + R - 6); g.lineTo(cx, yT); g.lineTo(xT, yT); g.stroke();
+    g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fillStyle = 'rgba(127,140,170,.10)'; g.fill(); g.lineWidth = 3; g.strokeStyle = muted; g.stroke();
+    g.beginPath(); g.arc(xT, yT, BIG + 4, 0, Math.PI * 2); g.lineWidth = 2; g.strokeStyle = line; g.setLineDash([4, 4]); g.stroke(); g.setLineDash([]);
+    balls.forEach(b => drawBall(b, b.x, b.y, br));
+    if (fly) drawBall(fly.b, fly.x, fly.y, fly.r, fly.r > br + 5);
+    else if (shown) drawBall(shown, xT, yT, BIG, true);
+  }
+  const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const loop = () => {
+    if (!run || !alive()) return;
+    physics();
+    if (fly){
+      const t = Math.min(1, (performance.now() - fly.t0) / fly.dur), p = along(fly.pts, ease(t));
+      fly.x = p[0]; fly.y = p[1]; fly.r = br + Math.max(0, (t - .7) / .3) * (BIG - br);
+      if (t >= 1){ shown = fly.b; const done = fly.done; fly = null; done(); }
+    }
+    paint(); requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  const mixMs = n > 14 ? 500 : 900, flyMs = n > 14 ? 650 : 1000;
+  for (let k = 0; k < n && alive(); k++){
+    if (!ctl.skip) await ctx.wait(k === 0 ? 1800 : mixMs);
+    if (ctl.skip || !alive()) break;
+    const b = balls.splice(balls.findIndex(x => x.name === order[k]), 1)[0];
+    shown = null;
+    await new Promise(res => { fly = {b, x:b.x, y:b.y, r:br, t0:performance.now(), dur:flyMs, pts:[[b.x, b.y], [cx, cy + R - br], [cx, yT], [xT, yT]], done:res}; });
+    if (!alive()) return;
+    const s = li(k); landSlot(ctx, s, k); s.scrollIntoView({block:'nearest'});
+  }
+  if (!alive()) return;
+  for (let k = 0; k < n; k++){ const s = li(k); if (s.classList.contains('wait')) landSlot(ctx, s, k); }
+  setTimeout(() => { run = false; }, 1500);
+  li(0).scrollIntoView({block:'nearest'});
+}
+/* 진행자 미리보기: 지금 설정으로 임의 순서를 만들어 연출만 보여 준다 */
+function demoShow(){
+  const f = ui.form, rr = {methods:{}, sequence:f.sequence};
+  FLOW.forEach(fl => rr.methods[fl.part] = methodOf(f, fl.part));
+  let sts = stages(rr).filter(st => ['choose','cards'].includes(stageMethod(rr, st)));
+  if (!sts.length) sts = stages(rr).slice(-1);
+  const orders = {}; sts.forEach(st => orders[st.key] = seededShuffle(stagePeople(st), Math.random));
+  orderShow(sts.map(st => st.key), {style: f.show, orders, demo: true});
+}
+
 /* ---------- 화면 ---------- */
 function partClass(name){ const m = memberOf(name); const i = FLOW.findIndex(f => f.part === (m && m.part)); return ' p' + ((i < 0 ? FLOW.length-1 : i) % 2); }
 function draw(){
@@ -764,7 +980,7 @@ function drawOrdersAndRest(r, ph, shown, viewRec){
     $('#orders').innerHTML = stages(r).map(f => {
       const order = r.orders[f.key] || [], m = stageMethod(r, f), zp = zonePart();
       const where = f.parts.length > 1 ? `${zp ? esc(zp) + '는 ' + esc(r.zoneName) + ' 안에서' : ''}` : f.key === zp && r.zoneName ? esc(r.zoneName) + ' 안에서' : '남은 자리에서';
-      return `<div class="card"><h2>${esc(f.key)} ${m === 'assign' ? '명단' : '순번'} <span class="muted" style="font-size:13px;font-weight:400">${esc(methodName(m))} · ${where}</span></h2><ol class="ord">${order.map((n,i) => {
+      return `<div class="card"><h2>${esc(f.key)} ${m === 'assign' ? '명단' : '순번'} <span class="muted" style="font-size:13px;font-weight:400">${esc(methodName(m))} · ${where}</span>${showStages(r).includes(f.key) ? ` <button class="btn mini" data-act="oshow" data-part="${esc(f.key)}" style="float:right">🎬 순번 공개 다시 보기</button>` : ''}</h2><ol class="ord">${order.map((n,i) => {
         const sid = seatOfName(n, shown), p = sid && shown[sid], isNow = ph && !ph.complete && ph.key === f.key && ph.turn === n;
         return `<li class="${isNow?'now':sid?'done':''}"><span class="n">${m === 'assign' ? '·' : i+1}</span><span>${esc(disp(n))}${f.parts.length > 1 ? ` <span class="muted" style="font-size:11px">${esc((partOfName(n)||'').replace('파트',''))}</span>` : ''}${n===myName && !S.isAdmin?' <span class="tag">나</span>':''}${p ? `<span class="by">${esc(byText(p))}</span>` : ''}</span>
           <span>${sid ? `<span class="seat">${esc(seatName(sid))}</span>` : isNow && S.isAdmin && i < order.length-1 ? `<button class="btn mini" data-act="toend" data-part="${esc(f.key)}" data-n="${esc(n)}">결석 · 맨 뒤로</button>` : ''}</span></li>`; }).join('')}</ol></div>`;
@@ -990,6 +1206,8 @@ function drawAdmin(ph){
         <label class="field"><span>순번 정하기</span><select id="f_orderHow">
           <option value="seed" ${f.orderHow !== 'manual' ? 'selected' : ''}>추첨 번호로 앱이 뽑기</option>
           <option value="manual" ${f.orderHow === 'manual' ? 'selected' : ''}>직접 입력 (오프라인 제비뽑기 결과)</option></select></label>
+        ${f.orderHow !== 'manual' ? `<label class="field"><span>순번 공개 연출</span><select id="f_show">${SHOWS.map(([k,t]) => `<option value="${k}" ${f.show === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        <button class="btn" data-act="oshowdemo" style="align-self:flex-end" ${f.show === 'none' ? 'disabled' : ''}>▶ 연출 미리보기</button>` : ''}
       </div>
       ${(() => { const sts = stages({sequence:f.sequence}).filter(st => stageMethod({methods:f.methods, sequence:f.sequence}, st) !== 'assign');
         return f.orderHow === 'manual' && sts.length ? `<div class="note" style="margin-top:10px;color:var(--ink)">제비뽑기에서 나온 <b>순서대로 이름을 누르세요.</b> 누른 순서가 1번, 2번… 순번이 돼요.
@@ -1064,6 +1282,8 @@ document.addEventListener('click', e => {
   else if (k === 'cancelsave'){ ui.confirmSave = false; draw(); }
   else if (k === 'save') api('save').then(ok => { if (ok){ ui.confirmSave = false; ui.msg = {text:'결과를 확정하고 기록에 저장했어요.', kind:'ok'}; draw(); } });
   else if (k === 'toend') api('toend', {part:a.dataset.part, name:a.dataset.n});
+  else if (k === 'oshow') orderShow([a.dataset.part], {style: S.round && S.round.show === 'none' ? 'slot' : undefined});
+  else if (k === 'oshowdemo') demoShow();
   else if (k === 'verify'){ ui.verify = ui.verify ? null : verify(S.round, S.parts, S.picks); draw(); }
   else if (k === 'viewrec'){ ui.viewRec = a.dataset.id; ui.sel = null; draw(); window.scrollTo({top:0, behavior:'smooth'}); }
   else if (k === 'closerec'){ ui.viewRec = null; draw(); }
@@ -1097,6 +1317,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'proxy'){ ui.proxy = t.value; ui.sel = null; draw(); }
   else if (t.id === 'f_zone'){ ui.form.zone = t.value; draw(); }
   else if (t.id === 'f_orderHow'){ ui.form.orderHow = t.value; draw(); }
+  else if (t.id === 'f_show'){ ui.form.show = t.value; LS.set('jari.show', t.value); draw(); }
   else if (t.id === 'f_sequence'){ ui.form.sequence = t.value; draw(); }
   else if (t.dataset.method){ ui.form.methods[t.dataset.method] = t.value; draw(); }
   else if (t.id && t.id.startsWith('d_')) api('dates', {[t.id.slice(2)]: t.value});
